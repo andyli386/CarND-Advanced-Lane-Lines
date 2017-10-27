@@ -9,9 +9,6 @@ import pickle
 from skimage import data, exposure, img_as_float
 #from moviepy.editor import VideoFileClip
 from IPython.display import HTML
-#from IPython import get_ipython
-
-#get_ipython().magic('matplotlib inline')
 
 def get_obj_img_points():
     # prepare object points, like (0,0,0), (1,0,0), (2,0,0) ....,(6,5,0)
@@ -48,16 +45,11 @@ def save_to_pickle(objpoints, imgpoints, imageName, pickleName="../camera_cal/wi
     img = cv2.imread(imageName)
     img_size = (img.shape[1], img.shape[0])
     ret, mtx, dist, rvecs, tvecs = cv2.calibrateCamera(objpoints, imgpoints, img_size,None,None)
-    #dst = cv2.undistort(img, mtx, dist, None, mtx)
-    #name = '../camera_cal/undist_'+image.split('/')[-1]
-    #cv2.imwrite(name, dst)
-    
+
     dist_pickle = {}
     dist_pickle["mtx"] = mtx
     dist_pickle["dist"] = dist
     pickle.dump( dist_pickle, open(pickleName, "wb" ) )
-
-
 
 
 def get_from_pickle(pickleName="../camera_cal/wide_dist_pickle.p"):
@@ -66,124 +58,112 @@ def get_from_pickle(pickleName="../camera_cal/wide_dist_pickle.p"):
     dist = dist_pickle["dist"]
     return mtx, dist
 
+def apply_thresh(processed_binary, thresh):
+    binary = np.zeros_like(processed_binary)
+    binary[(processed_binary >= thresh[0]) & (processed_binary <= thresh[1])] = 1
 
-def perspective_unwarp(img, mtx, dist, src, dst):
-    undist = cv2.undistort(img, mtx, dist, None, mtx)
+    return binary
 
-    img_size = (img.shape[1], img.shape[0])
-
-    # Given src and dst points, calculate the perspective transform matrix
-    M = cv2.getPerspectiveTransform(src, dst)
-    # Warp the image using OpenCV warpPerspective()
-    warped = cv2.warpPerspective(undist, M, img_size)
-    return warped, M
-
-
-def abs_sobel_thresh(img, orient='x', sobel_kernel=3, thresh=(0, 255)):
-    
-    # Apply the following steps to img
-    # 1) Convert to grayscale
+def get_abs_soble(img, orient='x', sobel_kernel=3):
     gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
-    # 2) Take the derivative in x or y given orient = 'x' or 'y'
     if orient == 'x':
         sobel = cv2.Sobel(gray, cv2.CV_64F, 1, 0, ksize=sobel_kernel)
     elif orient == 'y':
         sobel = cv2.Sobel(gray, cv2.CV_64F, 0, 1, ksize=sobel_kernel)
-    # 3) Take the absolute value of the derivative or gradient
     abs_sobel = np.absolute(sobel)
-    # 4) Scale to 8-bit (0 - 255) then convert to type = np.uint8
     scale_sobel = np.uint8(255*abs_sobel/np.max(abs_sobel))
-    # 5) Create a mask of 1's where the scaled gradient magnitude 
-    binary_output = np.zeros_like(scale_sobel)
-    binary_output[(scale_sobel >= thresh[0]) & (scale_sobel <= thresh[1])] = 1
-            # is > thresh_min and < thresh_max
-    # 6) Return this mask as your binary_output image
-    #binary_output = np.copy(img) # Remove this line
-    return binary_output
+
+    return scale_sobel
+
+
+def abs_sobel_thresh(img, orient='x', sobel_kernel=3, thresh=(0, 255)):
+    return apply_thresh(get_abs_soble(img, orient, sobel_kernel), thresh)
+
+
+def get_mag(img, sobel_kernel=3):
+    gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
+    sobelx = cv2.Sobel(gray, cv2.CV_64F, 1, 0, ksize=sobel_kernel)
+    sobely = cv2.Sobel(gray, cv2.CV_64F, 0, 1, ksize=sobel_kernel)
+
+    abs_sobelxy = np.sqrt(sobelx ** 2 + sobely ** 2)
+
+    scale_sobel = np.uint8(255 * abs_sobelxy / np.max(abs_sobelxy))
+
+    return scale_sobel
 
 def mag_thresh(img, sobel_kernel=3, mag_thresh=(0, 255)):
-    
-    # Apply the following steps to img
-    # 1) Convert to grayscale
+    return apply_thresh(get_mag(img, sobel_kernel), mag_thresh())
+
+
+def get_dir(img, sobel_kernel):
     gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
-    # 2) Take the gradient in x and y separately
     sobelx = cv2.Sobel(gray, cv2.CV_64F, 1, 0, ksize= sobel_kernel)
     sobely = cv2.Sobel(gray, cv2.CV_64F, 0, 1, ksize= sobel_kernel)
+    abs_sobelx = np.absolute(sobelx)
+    abs_sobely = np.absolute(sobely)
+    direction = np.arctan2(abs_sobely, abs_sobelx)
 
-    # 3) Calculate the magnitude 
-    abs_sobelxy = np.sqrt(sobelx**2+sobely**2)
-    
-    # 4) Scale to 8-bit (0 - 255) and convert to type = np.uint8
-    scale_sobel = np.uint8(255*abs_sobelxy/np.max(abs_sobelxy))
-    # 5) Create a binary mask where mag thresholds are met
-    binary_output = np.zeros_like(scale_sobel)
-    binary_output[(scale_sobel >= mag_thresh[0]) & (scale_sobel <= mag_thresh[1])] = 1
-    # 6) Return this mask as your binary_output image
-    #binary_output = np.copy(img) # Remove this line
-    return binary_output
+    return direction
 
 def dir_threshold(img, sobel_kernel=3, thresh=(0, np.pi/2)):
+    return apply_thresh(get_dir(img, sobel_kernel), thresh)
 
-    # Apply the following steps to img
-    # 1) Convert to grayscale
-    gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
-    # 2) Take the gradient in x and y separately
-    sobelx = cv2.Sobel(gray, cv2.CV_64F, 1, 0, ksize= sobel_kernel)
-    #print(sobelx.shape)
-    sobely = cv2.Sobel(gray, cv2.CV_64F, 0, 1, ksize= sobel_kernel)
-    # 3) Take the absolute value of the x and y gradients
-    abs_sobelx = np.absolute(sobelx)
-    abs_sobely = np.absolute(sobely)    
-    # 4) Use np.arctan2(abs_sobely, abs_sobelx) to calculate the direction of the gradient 
-    direction = np.arctan2(abs_sobely, abs_sobelx)
-    # 5) Create a binary mask where direction thresholds are met
-    binary_output = np.zeros_like(direction)
-    binary_output[(direction >= thresh[0]) & (direction <= thresh[1])] = 1    
-    # 6) Return this mask as your binary_output image
-    #binary_output = np.copy(img) # Remove this line
-    return binary_output
-
-def hls_select(img, channel='s', thresh=(0, 255)):
-    # 1) Convert to HLS color space
+def get_hls(img, channel):
     hls_img = cv2.cvtColor(img, cv2.COLOR_RGB2HLS)
-    # 2) Apply a threshold to the S channel
     if channel == 's':
         cha = hls_img[:,:,2]
     elif channel == 'h':
         cha = hls_img[:,:,0]
     elif channel == 'l':
         cha = hls_img[:,:,1]
-    binary = np.zeros_like(cha)
-    binary[(cha > thresh[0]) & (cha <= thresh[1])] = 1
-    # 3) Return a binary image of threshold result
-    #binary_output = np.copy(img) # placeholder line
-    return binary
+
+    return cha
+
+def hls_threshold(img, channel='s', thresh=(0, 255)):
+    return apply_thresh(get_hls(img, channel), thresh)
 
 
-def pipeline(img, s_thresh=(170, 255), sx_thresh=(20, 100)):
-    img = np.copy(img)
-    # Convert to HLS color space and separate the V channel
-    hls = cv2.cvtColor(img, cv2.COLOR_RGB2HLS).astype(np.float)
-    l_channel = hls[:,:,1]
-    s_channel = hls[:,:,2]
-    # Sobel x
-    sobelx = cv2.Sobel(l_channel, cv2.CV_64F, 1, 0) # Take the derivative in x
-    abs_sobelx = np.absolute(sobelx) # Absolute x derivative to accentuate lines away from horizontal
-    scaled_sobel = np.uint8(255*abs_sobelx/np.max(abs_sobelx))
-    
-    # Threshold x gradient
-    sxbinary = np.zeros_like(scaled_sobel)
-    sxbinary[(scaled_sobel >= sx_thresh[0]) & (scaled_sobel <= sx_thresh[1])] = 1
-    
-    # Threshold color channel
-    s_binary = np.zeros_like(s_channel)
-    s_binary[(s_channel >= s_thresh[0]) & (s_channel <= s_thresh[1])] = 1
-    # Stack each channel
-    # Note color_binary[:, :, 0] is all 0s, effectively an all black image. It might
-    # be beneficial to replace this channel with something else.
-    color_binary = np.dstack(( np.zeros_like(sxbinary), sxbinary, s_binary))
-    return color_binary
+def get_ycbcr(img, channel):
+    ycrcb = cv2.cvtColor(img, cv2.COLOR_RGB2YCrCb).astype(np.float)
 
+    if channel == 'y':
+        cha = ycrcb[:, :, 0]
+    elif channel == 'cr':
+        cha = ycrcb[:, :, 1]
+    elif channel == 'cb':
+        cha = ycrcb[:, :, 2]
+
+    return cha
+
+def ycbcr_threshold(img, channel='y', thresh=(0, 255)):
+    return apply_thresh(get_ycbcr(img, channel), thresh)
+
+def get_luv(img, channel):
+    luv = cv2.cvtColor(img, cv2.COLOR_RGB2LUV).astype(np.float)
+    if channel == 'l':
+        cha = luv[:, :, 0]
+    elif channel == 'u':
+        cha = luv[:, :, 1]
+    elif channel == 'v':
+        cha = luv[:, :, 2]
+    return cha
+
+def luv_threshold(img, channel='l', thresh=(0, 255)):
+    return apply_thresh(get_luv(img, channel), thresh)
+
+
+def get_lab(img, channel):
+    lab = cv2.cvtColor(img, cv2.COLOR_RGB2LAB).astype(np.float)
+    if channel == 'l':
+        cha = lab[:, :, 0]
+    elif channel == 'a':
+        cha = lab[:, :, 1]
+    elif channel == 'b':
+        cha = lab[:, :, 2]
+    return cha
+
+def lab_threshold(img, channel='l', thresh=(0, 255)):
+    return apply_thresh(get_lab(img, channel), thresh)
 
 def draw(image, processed_image):
     f, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 9))
@@ -202,6 +182,33 @@ def reset_gamma(img, gamma=0.3):
     return exposure.adjust_gamma(img, gamma)
 
 
+def perspective(img, mtx, dist, src, dst):
+    undist = cv2.undistort(img, mtx, dist, None, mtx)
+
+    img_size = (img.shape[1], img.shape[0])
+
+    M = cv2.getPerspectiveTransform(src, dst)
+    warped = cv2.warpPerspective(undist, M, img_size)
+    return warped, M
+
+
+def process_thresh(img, s_thresh=(170, 255), sx_thresh=(20, 100)):
+    img = np.copy(img)
+    img = reset_gamma(img)
+
+    l_channel = get_hls(img, 'l')
+    s_channel = get_hls(img, 's')
+
+    sobelx_binary = abs_sobel_thresh(l_channel, 'x', sobel_kernel=3, thresh=sx_thresh )
+    s_binary = apply_thresh(s_channel, s_thresh)
+
+    color_binary = np.dstack(( np.zeros_like(sobelx_binary), sobelx_binary, s_binary))
+    return color_binary
+
+def pipeline(img,  mtx, dist, src, dst, s_thresh, sx_thresh):
+    processed_image = process_thresh(img, s_thresh, sx_thresh)
+    return perspective(processed_image, mtx, dist, src, dst)
+
 src = np.float32([[190, 720], [589, 457], [698, 457], [1145,720]])
 dst = np.float32([[340, 720], [340, 0], [995, 0], [995, 720]])
 
@@ -209,29 +216,39 @@ objpoints, imgpoints = get_obj_img_points()
 
 mtx,dist = get_from_pickle()
 
-image = mpimg.imread('../test_images/straight_lines1.jpg')
+#image = mpimg.imread('../test_images/straight_lines1.jpg')
 
+test_ch1 = mpimg.imread('../test_images1/test_ch1.jpg')
 test_ch6 = mpimg.imread('../test_images1/test_ch6.jpg')
 
-gradx = abs_sobel_thresh(image, orient='x', sobel_kernel=3, thresh=(20, 100))
-grady = abs_sobel_thresh(image, orient='y', sobel_kernel=3, thresh=(20, 100))
+#gradx = abs_sobel_thresh(image, orient='x', sobel_kernel=3, thresh=(20, 100))
+#grady = abs_sobel_thresh(image, orient='y', sobel_kernel=3, thresh=(20, 100))
+#
+#result, M = perspective(gradx, mtx, dist, src, dst)
+#result, M = pipeline(test_ch6, mtx, dist, src, dst,s_thresh=(170, 255), sx_thresh=(20, 100))
+#draw(test_ch6, result)
+result, M = pipeline(test_ch1, mtx, dist, src, dst,s_thresh=(170, 255), sx_thresh=(20, 100))
+#draw(test_ch1, result)
 
+#draw(test_ch1, get_luv(test_ch1, channel='l'))
+#draw(test_ch1, luv_threshold(test_ch1, channel='u'))
+#draw(test_ch1, luv_threshold(test_ch1, channel='v'))
 
-result, M = perspective_unwarp(gradx, mtx, dist, src, dst)
-draw(gradx, result)
+draw(test_ch1, get_lab(test_ch1, channel='l'))
+draw(test_ch1, get_lab(test_ch1, channel='a'))
+draw(test_ch1, get_lab(test_ch1, channel='b'))
 
-
-#result, M = perspective_unwarp(grady, mtx, dist, src, dst)
+#result, M = perspective(grady, mtx, dist, src, dst)
 #draw(grady, result)
 #
 #
 #mag_image = mag_thresh(image, sobel_kernel=3, mag_thresh=(20, 100))
-#result, M = perspective_unwarp(mag_image, mtx, dist, src, dst)
+#result, M = perspective(mag_image, mtx, dist, src, dst)
 #draw(mag_image, result)
 #
 #
 #dir_image = dir_threshold(image, sobel_kernel=3, thresh=(0.6, 1.3))
-#result, M = perspective_unwarp(dir_image, mtx, dist, src, dst)
+#result, M = perspective(dir_image, mtx, dist, src, dst)
 #draw(dir_image, result)
 #
 #
@@ -240,15 +257,15 @@ draw(gradx, result)
 #l_binary = hls_select(image, channel='l', thresh=(90, 255))
 #
 #
-#result, M = perspective_unwarp(s_binary, mtx, dist, src, dst)
+#result, M = perspective(s_binary, mtx, dist, src, dst)
 #draw(s_binary, result)
 #
 #
-#result, M = perspective_unwarp(h_binary, mtx, dist, src, dst)
+#result, M = perspective(h_binary, mtx, dist, src, dst)
 #draw(h_binary, result)
 #
 #
-#result, M = perspective_unwarp(l_binary, mtx, dist, src, dst)
+#result, M = perspective(l_binary, mtx, dist, src, dst)
 #draw(l_binary, result)
 #
 #
