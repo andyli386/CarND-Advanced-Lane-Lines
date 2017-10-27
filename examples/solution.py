@@ -64,8 +64,12 @@ def apply_thresh(processed_binary, thresh):
 
     return binary
 
-def get_abs_soble(img, orient='x', sobel_kernel=3):
-    gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
+def get_abs_soble(img, orient, sobel_kernel, toGray):
+    if toGray:
+        gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
+    else:
+        gray = img
+
     if orient == 'x':
         sobel = cv2.Sobel(gray, cv2.CV_64F, 1, 0, ksize=sobel_kernel)
     elif orient == 'y':
@@ -76,12 +80,16 @@ def get_abs_soble(img, orient='x', sobel_kernel=3):
     return scale_sobel
 
 
-def abs_sobel_thresh(img, orient='x', sobel_kernel=3, thresh=(0, 255)):
-    return apply_thresh(get_abs_soble(img, orient, sobel_kernel), thresh)
+def abs_sobel_thresh(img, orient='x', sobel_kernel=3, toGray=True, thresh=(0, 255)):
+    return apply_thresh(get_abs_soble(img, orient, sobel_kernel, toGray), thresh)
 
 
-def get_mag(img, sobel_kernel=3):
-    gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
+def get_mag(img, sobel_kernel, toGray):
+    if toGray:
+        gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
+    else:
+        gray = img
+
     sobelx = cv2.Sobel(gray, cv2.CV_64F, 1, 0, ksize=sobel_kernel)
     sobely = cv2.Sobel(gray, cv2.CV_64F, 0, 1, ksize=sobel_kernel)
 
@@ -91,12 +99,16 @@ def get_mag(img, sobel_kernel=3):
 
     return scale_sobel
 
-def mag_thresh(img, sobel_kernel=3, mag_thresh=(0, 255)):
-    return apply_thresh(get_mag(img, sobel_kernel), mag_thresh())
+def mag_thresh(img, sobel_kernel=3, toGray=True, thresh=(0, 255)):
+    return apply_thresh(get_mag(img, sobel_kernel, toGray), thresh)
 
 
-def get_dir(img, sobel_kernel):
-    gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
+def get_dir(img, sobel_kernel, toGray):
+    if toGray:
+        gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
+    else:
+        gray = img
+
     sobelx = cv2.Sobel(gray, cv2.CV_64F, 1, 0, ksize= sobel_kernel)
     sobely = cv2.Sobel(gray, cv2.CV_64F, 0, 1, ksize= sobel_kernel)
     abs_sobelx = np.absolute(sobelx)
@@ -105,17 +117,17 @@ def get_dir(img, sobel_kernel):
 
     return direction
 
-def dir_threshold(img, sobel_kernel=3, thresh=(0, np.pi/2)):
-    return apply_thresh(get_dir(img, sobel_kernel), thresh)
+def dir_threshold(img, sobel_kernel=3, toGray=True, thresh=(0, np.pi/2)):
+    return apply_thresh(get_dir(img, sobel_kernel, toGray), thresh)
 
 def get_hls(img, channel):
-    hls_img = cv2.cvtColor(img, cv2.COLOR_RGB2HLS)
-    if channel == 's':
-        cha = hls_img[:,:,2]
-    elif channel == 'h':
-        cha = hls_img[:,:,0]
+    hls = cv2.cvtColor(img, cv2.COLOR_RGB2HLS).astype(np.float)
+    if channel == 'h':
+        cha = hls[:,:,0]
     elif channel == 'l':
-        cha = hls_img[:,:,1]
+        cha = hls[:,:,1]
+    elif channel == 's':
+        cha = hls[:,:,2]
 
     return cha
 
@@ -194,20 +206,115 @@ def perspective(img, mtx, dist, src, dst):
 
 def process_thresh(img, s_thresh=(170, 255), sx_thresh=(20, 100)):
     img = np.copy(img)
+
     img = reset_gamma(img)
 
     l_channel = get_hls(img, 'l')
-    s_channel = get_hls(img, 's')
+    sobelx_binary = abs_sobel_thresh(l_channel, 'x', sobel_kernel=3, toGray=False, thresh=sx_thresh )
 
-    sobelx_binary = abs_sobel_thresh(l_channel, 'x', sobel_kernel=3, thresh=sx_thresh )
+    s_channel = get_hls(img, 's')
     s_binary = apply_thresh(s_channel, s_thresh)
 
-    color_binary = np.dstack(( np.zeros_like(sobelx_binary), sobelx_binary, s_binary))
+    #color_binary = np.dstack((np.zeros_like(sobelx_binary), sobelx_binary, s_binary))
+
+    color_binary = np.zeros_like(s_binary)
+    color_binary[(s_binary > 0) | (sobelx_binary > 0)] = 1
     return color_binary
 
 def pipeline(img,  mtx, dist, src, dst, s_thresh, sx_thresh):
     processed_image = process_thresh(img, s_thresh, sx_thresh)
     return perspective(processed_image, mtx, dist, src, dst)
+
+def draw_rect(warped_image):
+    binary_warped = warped_image
+    # Assuming you have created a warped binary image called "binary_warped"
+    # Take a histogram of the bottom half of the image
+    histogram = np.sum(binary_warped[int(binary_warped.shape[0]/2):,:], axis=0)
+    print(binary_warped.shape, histogram.shape)
+    # Create an output image to draw on and  visualize the result
+    out_img = np.dstack((binary_warped, binary_warped, binary_warped))*255
+    draw(binary_warped, out_img)
+    # Find the peak of the left and right halves of the histogram
+    # These will be the starting point for the left and right lines
+    midpoint = np.int(histogram.shape[0]/2)
+    leftx_base = np.argmax(histogram[:midpoint])
+    rightx_base = np.argmax(histogram[midpoint:]) + midpoint
+
+    # Choose the number of sliding windows
+    nwindows = 9
+    # Set height of windows
+    window_height = np.int(binary_warped.shape[0]/nwindows)
+    # Identify the x and y positions of all nonzero pixels in the image
+    nonzero = binary_warped.nonzero()
+    nonzeroy = np.array(nonzero[0])
+    nonzerox = np.array(nonzero[1])
+    # Current positions to be updated for each window
+    leftx_current = leftx_base
+    rightx_current = rightx_base
+    # Set the width of the windows +/- margin
+    margin = 100
+    # Set minimum number of pixels found to recenter window
+    minpix = 50
+    # Create empty lists to receive left and right lane pixel indices
+    left_lane_inds = []
+    right_lane_inds = []
+
+    # Step through the windows one by one
+    for window in range(nwindows):
+        # Identify window boundaries in x and y (and right and left)
+        win_y_low = binary_warped.shape[0] - (window+1)*window_height
+        win_y_high = binary_warped.shape[0] - window*window_height
+        win_xleft_low = leftx_current - margin
+        win_xleft_high = leftx_current + margin
+        win_xright_low = rightx_current - margin
+        win_xright_high = rightx_current + margin
+        # Draw the windows on the visualization image
+        cv2.rectangle(out_img,(win_xleft_low,win_y_low),(win_xleft_high,win_y_high),
+        (0,255,0), 2)
+        cv2.rectangle(out_img,(win_xright_low,win_y_low),(win_xright_high,win_y_high),
+        (0,255,0), 2)
+        # Identify the nonzero pixels in x and y within the window
+        good_left_inds = ((nonzeroy >= win_y_low) & (nonzeroy < win_y_high) &
+        (nonzerox >= win_xleft_low) &  (nonzerox < win_xleft_high)).nonzero()[0]
+        good_right_inds = ((nonzeroy >= win_y_low) & (nonzeroy < win_y_high) &
+        (nonzerox >= win_xright_low) &  (nonzerox < win_xright_high)).nonzero()[0]
+        # Append these indices to the lists
+        left_lane_inds.append(good_left_inds)
+        right_lane_inds.append(good_right_inds)
+        # If you found > minpix pixels, recenter next window on their mean position
+        if len(good_left_inds) > minpix:
+            leftx_current = np.int(np.mean(nonzerox[good_left_inds]))
+        if len(good_right_inds) > minpix:
+            rightx_current = np.int(np.mean(nonzerox[good_right_inds]))
+
+    # Concatenate the arrays of indices
+    left_lane_inds = np.concatenate(left_lane_inds)
+    right_lane_inds = np.concatenate(right_lane_inds)
+
+    # Extract left and right line pixel positions
+    leftx = nonzerox[left_lane_inds]
+    lefty = nonzeroy[left_lane_inds]
+    rightx = nonzerox[right_lane_inds]
+    righty = nonzeroy[right_lane_inds]
+
+    # Fit a second order polynomial to each
+    left_fit = np.polyfit(lefty, leftx, 2)
+    right_fit = np.polyfit(righty, rightx, 2)
+
+    # Generate x and y values for plotting
+    ploty = np.linspace(0, binary_warped.shape[0] - 1, binary_warped.shape[0])
+    left_fitx = left_fit[0] * ploty ** 2 + left_fit[1] * ploty + left_fit[2]
+    right_fitx = right_fit[0] * ploty ** 2 + right_fit[1] * ploty + right_fit[2]
+
+    out_img[nonzeroy[left_lane_inds], nonzerox[left_lane_inds]] = [255, 0, 0]
+    out_img[nonzeroy[right_lane_inds], nonzerox[right_lane_inds]] = [0, 0, 255]
+    plt.plot(left_fitx, ploty, color='yellow')
+    plt.plot(right_fitx, ploty, color='yellow')
+    plt.xlim(0, 1280)
+    plt.ylim(720, 0)
+    plt.imshow(out_img)
+    plt.show()
+
 
 src = np.float32([[190, 720], [589, 457], [698, 457], [1145,720]])
 dst = np.float32([[340, 720], [340, 0], [995, 0], [995, 720]])
@@ -216,9 +323,10 @@ objpoints, imgpoints = get_obj_img_points()
 
 mtx,dist = get_from_pickle()
 
-#image = mpimg.imread('../test_images/straight_lines1.jpg')
+test_straight_lines1 = mpimg.imread('../test_images/straight_lines1.jpg')
 
 test_ch1 = mpimg.imread('../test_images1/test_ch1.jpg')
+test_ch5 = mpimg.imread('../test_images1/test_ch5.jpg')
 test_ch6 = mpimg.imread('../test_images1/test_ch6.jpg')
 
 #gradx = abs_sobel_thresh(image, orient='x', sobel_kernel=3, thresh=(20, 100))
@@ -227,19 +335,13 @@ test_ch6 = mpimg.imread('../test_images1/test_ch6.jpg')
 #result, M = perspective(gradx, mtx, dist, src, dst)
 #result, M = pipeline(test_ch6, mtx, dist, src, dst,s_thresh=(170, 255), sx_thresh=(20, 100))
 #draw(test_ch6, result)
-result, M = pipeline(test_ch1, mtx, dist, src, dst,s_thresh=(170, 255), sx_thresh=(20, 100))
+
+#result, M = pipeline(test_ch5, mtx, dist, src, dst,s_thresh=(60, 200), sx_thresh=(20, 100))
 #draw(test_ch1, result)
 
-#draw(test_ch1, get_luv(test_ch1, channel='l'))
-#draw(test_ch1, luv_threshold(test_ch1, channel='u'))
-#draw(test_ch1, luv_threshold(test_ch1, channel='v'))
+result, M = pipeline(test_straight_lines1, mtx, dist, src, dst,s_thresh=(60, 200), sx_thresh=(20, 100))
 
-draw(test_ch1, get_lab(test_ch1, channel='l'))
-draw(test_ch1, get_lab(test_ch1, channel='a'))
-draw(test_ch1, get_lab(test_ch1, channel='b'))
 
-#result, M = perspective(grady, mtx, dist, src, dst)
-#draw(grady, result)
 #
 #
 #mag_image = mag_thresh(image, sobel_kernel=3, mag_thresh=(20, 100))
@@ -250,83 +352,9 @@ draw(test_ch1, get_lab(test_ch1, channel='b'))
 #dir_image = dir_threshold(image, sobel_kernel=3, thresh=(0.6, 1.3))
 #result, M = perspective(dir_image, mtx, dist, src, dst)
 #draw(dir_image, result)
-#
-#
-#s_binary = hls_select(image, channel='s', thresh=(90, 255))
-#h_binary = hls_select(image, channel='h', thresh=(90, 255))
-#l_binary = hls_select(image, channel='l', thresh=(90, 255))
-#
-#
-#result, M = perspective(s_binary, mtx, dist, src, dst)
-#draw(s_binary, result)
-#
-#
-#result, M = perspective(h_binary, mtx, dist, src, dst)
-#draw(h_binary, result)
-#
-#
-#result, M = perspective(l_binary, mtx, dist, src, dst)
-#draw(l_binary, result)
-#
-#
-#img1 = cv2.cvtColor(image, cv2.COLOR_RGB2YCrCb)
-#
-#
-#img1.shape
-#
-#
-#YCrCb0 = img1[:,:,0]
-#YCrCb1 = img1[:,:,1]
-#YCrCb2 = img1[:,:,2]
-#
-#
-#draw(YCrCb0, YCrCb1)
-#
-#
-#draw(YCrCb0, YCrCb2)
-#
-#
-#
-#
-#
-#
-#test_ch6_gamma = reset_gamma(test_ch6)
-#
-#
-#test_ch6_ycrcb = cv2.cvtColor(test_ch6_gamma, cv2.COLOR_RGB2YCrCb)
-#
-#
-#test_ch6_0 = test_ch6_ycrcb[:, :, 0]
-#test_ch6_1 = test_ch6_ycrcb[:, :, 1]
-#test_ch6_2 = test_ch6_ycrcb[:, :, 2]
-#
-#
-#draw(test_ch6_0, test_ch6_1)
-#
-#
-#draw(test_ch6_0, test_ch6_2)
-#
-#
-#test_ch6_lab = cv2.cvtColor(test_ch6, cv2.COLOR_RGB2LAB)
-#
-#
-#draw(test_ch6_gamma, test_ch6_lab)
-#
-#
-#test_ch6_lab0 = test_ch6_lab[:, :, 0]
-#test_ch6_lab1 = test_ch6_lab[:, :, 1]
-#test_ch6_lab2 = test_ch6_lab[:, :, 2]
-#
-#
-#draw(test_ch6_lab, test_ch6_lab0)
-#
-#
-#draw(test_ch6_lab, test_ch6_lab1)
-#
-#
-#
-#
-#draw(test_ch6_lab, test_ch6_lab2)
+
+
+
 #
 #
 #
@@ -355,76 +383,6 @@ draw(test_ch1, get_lab(test_ch1, channel='b'))
 #
 #
 #
-#def draw_rect(warped_image):
-#    binary_warped = warped_image[:,:,0]
-#    # Assuming you have created a warped binary image called "binary_warped"
-#    # Take a histogram of the bottom half of the image
-#    histogram = np.sum(binary_warped[int(binary_warped.shape[0]/2):,:], axis=0)
-#    # Create an output image to draw on and  visualize the result
-#    out_img = np.dstack((binary_warped, binary_warped, binary_warped))*255
-#    # Find the peak of the left and right halves of the histogram
-#    # These will be the starting point for the left and right lines
-#    midpoint = np.int(histogram.shape[0]/2)
-#    leftx_base = np.argmax(histogram[:midpoint])
-#    rightx_base = np.argmax(histogram[midpoint:]) + midpoint
-#
-#    # Choose the number of sliding windows
-#    nwindows = 9
-#    # Set height of windows
-#    window_height = np.int(binary_warped.shape[0]/nwindows)
-#    # Identify the x and y positions of all nonzero pixels in the image
-#    nonzero = binary_warped.nonzero()
-#    nonzeroy = np.array(nonzero[0])
-#    nonzerox = np.array(nonzero[1])
-#    # Current positions to be updated for each window
-#    leftx_current = leftx_base
-#    rightx_current = rightx_base
-#    # Set the width of the windows +/- margin
-#    margin = 100
-#    # Set minimum number of pixels found to recenter window
-#    minpix = 50
-#    # Create empty lists to receive left and right lane pixel indices
-#    left_lane_inds = []
-#    right_lane_inds = []
-#
-#    # Step through the windows one by one
-#    for window in range(nwindows):
-#        # Identify window boundaries in x and y (and right and left)
-#        win_y_low = binary_warped.shape[0] - (window+1)*window_height
-#        win_y_high = binary_warped.shape[0] - window*window_height
-#        win_xleft_low = leftx_current - margin
-#        win_xleft_high = leftx_current + margin
-#        win_xright_low = rightx_current - margin
-#        win_xright_high = rightx_current + margin
-#        # Draw the windows on the visualization image
-#        cv2.rectangle(out_img,(win_xleft_low,win_y_low),(win_xleft_high,win_y_high),
-#        (0,255,0), 2)
-#        cv2.rectangle(out_img,(win_xright_low,win_y_low),(win_xright_high,win_y_high),
-#        (0,255,0), 2)
-#        # Identify the nonzero pixels in x and y within the window
-#        good_left_inds = ((nonzeroy >= win_y_low) & (nonzeroy < win_y_high) &
-#        (nonzerox >= win_xleft_low) &  (nonzerox < win_xleft_high)).nonzero()[0]
-#        good_right_inds = ((nonzeroy >= win_y_low) & (nonzeroy < win_y_high) &
-#        (nonzerox >= win_xright_low) &  (nonzerox < win_xright_high)).nonzero()[0]
-#        # Append these indices to the lists
-#        left_lane_inds.append(good_left_inds)
-#        right_lane_inds.append(good_right_inds)
-#        # If you found > minpix pixels, recenter next window on their mean position
-#        if len(good_left_inds) > minpix:
-#            leftx_current = np.int(np.mean(nonzerox[good_left_inds]))
-#        if len(good_right_inds) > minpix:
-#            rightx_current = np.int(np.mean(nonzerox[good_right_inds]))
-#
-#    # Concatenate the arrays of indices
-#    left_lane_inds = np.concatenate(left_lane_inds)
-#    right_lane_inds = np.concatenate(right_lane_inds)
-#
-#    # Extract left and right line pixel positions
-#    leftx = nonzerox[left_lane_inds]
-#    lefty = nonzeroy[left_lane_inds]
-#    rightx = nonzerox[right_lane_inds]
-#    righty = nonzeroy[right_lane_inds]
-#
-#    # Fit a second order polynomial to each
-#    left_fit = np.polyfit(lefty, leftx, 2)
-#    right_fit = np.polyfit(righty, rightx, 2)
+
+
+draw_rect(result)
