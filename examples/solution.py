@@ -7,8 +7,9 @@ import matplotlib.pyplot as plt
 import matplotlib.image as mpimg
 import pickle
 from skimage import data, exposure, img_as_float
-#from moviepy.editor import VideoFileClip
+from moviepy.editor import VideoFileClip
 from IPython.display import HTML
+from IPython import get_ipython
 
 def get_obj_img_points():
     # prepare object points, like (0,0,0), (1,0,0), (2,0,0) ....,(6,5,0)
@@ -221,7 +222,7 @@ def process_thresh(img, s_thresh=(170, 255), sx_thresh=(20, 100)):
     color_binary[(s_binary > 0) | (sobelx_binary > 0)] = 1
     return color_binary
 
-def pipeline(img,  mtx, dist, src, dst, s_thresh, sx_thresh):
+def my_pipeline(img,  mtx, dist, src, dst, s_thresh, sx_thresh):
     processed_image = process_thresh(img, s_thresh, sx_thresh)
     return perspective(processed_image, mtx, dist, src, dst)
 
@@ -230,10 +231,10 @@ def draw_rect(warped_image):
     # Assuming you have created a warped binary image called "binary_warped"
     # Take a histogram of the bottom half of the image
     histogram = np.sum(binary_warped[int(binary_warped.shape[0]/2):,:], axis=0)
-    print(binary_warped.shape, histogram.shape)
+    #print(binary_warped.shape, histogram.shape)
     # Create an output image to draw on and  visualize the result
     out_img = np.dstack((binary_warped, binary_warped, binary_warped))*255
-    draw(binary_warped, out_img)
+    #draw(binary_warped, out_img)
     # Find the peak of the left and right halves of the histogram
     # These will be the starting point for the left and right lines
     midpoint = np.int(histogram.shape[0]/2)
@@ -312,77 +313,69 @@ def draw_rect(warped_image):
     plt.plot(right_fitx, ploty, color='yellow')
     plt.xlim(0, 1280)
     plt.ylim(720, 0)
-    plt.imshow(out_img)
-    plt.show()
+    #plt.imshow(out_img)
+    #plt.show()
+    return out_img
 
 
-src = np.float32([[190, 720], [589, 457], [698, 457], [1145,720]])
-dst = np.float32([[340, 720], [340, 0], [995, 0], [995, 720]])
+def pipeline(image):
+    src = np.float32([[190, 720], [589, 457], [698, 457], [1145, 720]])
+    dst = np.float32([[340, 720], [340, 0], [995, 0], [995, 720]])
+    objpoints, imgpoints = get_obj_img_points()
+    mtx, dist = get_from_pickle()
 
-objpoints, imgpoints = get_obj_img_points()
+    #test_straight_lines1 = mpimg.imread('../test_images/straight_lines1.jpg')
+    #test_ch1 = mpimg.imread('../test_images1/test_ch1.jpg')
+    #test_ch5 = mpimg.imread('../test_images1/test_ch5.jpg')
+    #test_ch6 = mpimg.imread('../test_images1/test_ch6.jpg')
 
-mtx,dist = get_from_pickle()
+    # gradx = abs_sobel_thresh(image, orient='x', sobel_kernel=3, thresh=(20, 100))
+    # grady = abs_sobel_thresh(image, orient='y', sobel_kernel=3, thresh=(20, 100))
+    #
+    # result, M = perspective(gradx, mtx, dist, src, dst)
+    # result, M = pipeline(test_ch6, mtx, dist, src, dst,s_thresh=(170, 255), sx_thresh=(20, 100))
+    # draw(test_ch6, result)
+    # result, M = pipeline(test_ch5, mtx, dist, src, dst,s_thresh=(60, 200), sx_thresh=(20, 100))
+    # draw(test_ch1, result)
+    result, M = my_pipeline(image, mtx, dist, src, dst, s_thresh=(60, 200), sx_thresh=(20, 100))
+    #
+    #
+    # mag_image = mag_thresh(image, sobel_kernel=3, mag_thresh=(20, 100))
+    # result, M = perspective(mag_image, mtx, dist, src, dst)
+    # draw(mag_image, result)
+    #
+    #
+    # dir_image = dir_threshold(image, sobel_kernel=3, thresh=(0.6, 1.3))
+    # result, M = perspective(dir_image, mtx, dist, src, dst)
+    # draw(dir_image, result)
+    #
+    #
+    #
+    #
+    ### To speed up the testing process you may want to try your pipeline on a shorter subclip of the video
+    ### To do so add .subclip(start_second,end_second) to the end of the line below
+    ### Where start_second and end_second are integer values representing the start and end of the subclip
+    ### You may also uncomment the following line for a subclip of the first 5 seconds
 
-test_straight_lines1 = mpimg.imread('../test_images/straight_lines1.jpg')
-
-test_ch1 = mpimg.imread('../test_images1/test_ch1.jpg')
-test_ch5 = mpimg.imread('../test_images1/test_ch5.jpg')
-test_ch6 = mpimg.imread('../test_images1/test_ch6.jpg')
-
-#gradx = abs_sobel_thresh(image, orient='x', sobel_kernel=3, thresh=(20, 100))
-#grady = abs_sobel_thresh(image, orient='y', sobel_kernel=3, thresh=(20, 100))
-#
-#result, M = perspective(gradx, mtx, dist, src, dst)
-#result, M = pipeline(test_ch6, mtx, dist, src, dst,s_thresh=(170, 255), sx_thresh=(20, 100))
-#draw(test_ch6, result)
-
-#result, M = pipeline(test_ch5, mtx, dist, src, dst,s_thresh=(60, 200), sx_thresh=(20, 100))
-#draw(test_ch1, result)
-
-result, M = pipeline(test_straight_lines1, mtx, dist, src, dst,s_thresh=(60, 200), sx_thresh=(20, 100))
-
-
-#
-#
-#mag_image = mag_thresh(image, sobel_kernel=3, mag_thresh=(20, 100))
-#result, M = perspective(mag_image, mtx, dist, src, dst)
-#draw(mag_image, result)
-#
-#
-#dir_image = dir_threshold(image, sobel_kernel=3, thresh=(0.6, 1.3))
-#result, M = perspective(dir_image, mtx, dist, src, dst)
-#draw(dir_image, result)
-
-
-
-#
-#
-#
-#
-#white_output = 'test_videos_output/solidWhiteRight.mp4'
-### To speed up the testing process you may want to try your pipeline on a shorter subclip of the video
-### To do so add .subclip(start_second,end_second) to the end of the line below
-### Where start_second and end_second are integer values representing the start and end of the subclip
-### You may also uncomment the following line for a subclip of the first 5 seconds
-###clip1 = VideoFileClip("test_videos/solidWhiteRight.mp4").subclip(0,5)
-#
-##clip1 = VideoFileClip("test_videos/solidWhiteRight.mp4")
-##white_clip = clip1.fl_image(pipeline) #NOTE: this function expects color images!!
-#
-##get_ipython().magic('time white_clip.write_videofile(white_output, audio=False)')
-#
-#
-#
-#
-#HTML("""
-#<video width="960" height="540" controls>
-#  <source src="{0}">
-#</video>
-#""".format(white_output))
-#
-#
-#
-#
+    #
+    #
+    #
+    #
+    # HTML("""
+    # <video width="960" height="540" controls>
+    #  <source src="{0}">
+    # </video>
+    # """.format(white_output))
+    #
+    #
+    #
+    #
+    return draw_rect(result)
 
 
-draw_rect(result)
+white_output = '../test_videos_output/test.mp4'
+clip1 = VideoFileClip("../project_video.mp4")
+white_clip = clip1.fl_image(pipeline) #NOTE: this function expects color images!!
+white_clip.write_videofile(white_output, audio=False)
+
+#get_ipython().magic('time white_clip.write_videofile(white_output, audio=False)')

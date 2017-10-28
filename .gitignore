@@ -3,3 +3,4 @@ camera_cal/undist_*
 examples/.ipynb_checkpoints/solution-checkpoint.ipynb
 test_images.rar
 camera_cal/wide_dist_pickle.p
+examples/.ipynb_checkpoints/example-checkpoint.ipynb
