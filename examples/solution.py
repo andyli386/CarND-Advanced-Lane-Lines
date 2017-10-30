@@ -11,6 +11,9 @@ from moviepy.editor import VideoFileClip
 from IPython.display import HTML
 from IPython import get_ipython
 
+from ImageUtils import ImageUtils
+import Line
+
 def get_obj_img_points():
     # prepare object points, like (0,0,0), (1,0,0), (2,0,0) ....,(6,5,0)
     objp = np.zeros((6*9,3), np.float32)
@@ -59,124 +62,7 @@ def get_from_pickle(pickleName="../camera_cal/wide_dist_pickle.p"):
     dist = dist_pickle["dist"]
     return mtx, dist
 
-def apply_thresh(processed_binary, thresh):
-    binary = np.zeros_like(processed_binary)
-    binary[(processed_binary >= thresh[0]) & (processed_binary <= thresh[1])] = 1
 
-    return binary
-
-def get_abs_soble(img, orient, sobel_kernel, toGray):
-    if toGray:
-        gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
-    else:
-        gray = img
-
-    if orient == 'x':
-        sobel = cv2.Sobel(gray, cv2.CV_64F, 1, 0, ksize=sobel_kernel)
-    elif orient == 'y':
-        sobel = cv2.Sobel(gray, cv2.CV_64F, 0, 1, ksize=sobel_kernel)
-    abs_sobel = np.absolute(sobel)
-    scale_sobel = np.uint8(255*abs_sobel/np.max(abs_sobel))
-
-    return scale_sobel
-
-
-def abs_sobel_thresh(img, orient='x', sobel_kernel=3, toGray=True, thresh=(0, 255)):
-    return apply_thresh(get_abs_soble(img, orient, sobel_kernel, toGray), thresh)
-
-
-def get_mag(img, sobel_kernel, toGray):
-    if toGray:
-        gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
-    else:
-        gray = img
-
-    sobelx = cv2.Sobel(gray, cv2.CV_64F, 1, 0, ksize=sobel_kernel)
-    sobely = cv2.Sobel(gray, cv2.CV_64F, 0, 1, ksize=sobel_kernel)
-
-    abs_sobelxy = np.sqrt(sobelx ** 2 + sobely ** 2)
-
-    scale_sobel = np.uint8(255 * abs_sobelxy / np.max(abs_sobelxy))
-
-    return scale_sobel
-
-def mag_thresh(img, sobel_kernel=3, toGray=True, thresh=(0, 255)):
-    return apply_thresh(get_mag(img, sobel_kernel, toGray), thresh)
-
-
-def get_dir(img, sobel_kernel, toGray):
-    if toGray:
-        gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
-    else:
-        gray = img
-
-    sobelx = cv2.Sobel(gray, cv2.CV_64F, 1, 0, ksize= sobel_kernel)
-    sobely = cv2.Sobel(gray, cv2.CV_64F, 0, 1, ksize= sobel_kernel)
-    abs_sobelx = np.absolute(sobelx)
-    abs_sobely = np.absolute(sobely)
-    direction = np.arctan2(abs_sobely, abs_sobelx)
-
-    return direction
-
-def dir_threshold(img, sobel_kernel=3, toGray=True, thresh=(0, np.pi/2)):
-    return apply_thresh(get_dir(img, sobel_kernel, toGray), thresh)
-
-def get_hls(img, channel):
-    hls = cv2.cvtColor(img, cv2.COLOR_RGB2HLS).astype(np.float)
-    if channel == 'h':
-        cha = hls[:,:,0]
-    elif channel == 'l':
-        cha = hls[:,:,1]
-    elif channel == 's':
-        cha = hls[:,:,2]
-
-    return cha
-
-def hls_threshold(img, channel='s', thresh=(0, 255)):
-    return apply_thresh(get_hls(img, channel), thresh)
-
-
-def get_ycbcr(img, channel):
-    ycrcb = cv2.cvtColor(img, cv2.COLOR_RGB2YCrCb).astype(np.float)
-
-    if channel == 'y':
-        cha = ycrcb[:, :, 0]
-    elif channel == 'cr':
-        cha = ycrcb[:, :, 1]
-    elif channel == 'cb':
-        cha = ycrcb[:, :, 2]
-
-    return cha
-
-def ycbcr_threshold(img, channel='y', thresh=(0, 255)):
-    return apply_thresh(get_ycbcr(img, channel), thresh)
-
-def get_luv(img, channel):
-    luv = cv2.cvtColor(img, cv2.COLOR_RGB2LUV).astype(np.float)
-    if channel == 'l':
-        cha = luv[:, :, 0]
-    elif channel == 'u':
-        cha = luv[:, :, 1]
-    elif channel == 'v':
-        cha = luv[:, :, 2]
-    return cha
-
-def luv_threshold(img, channel='l', thresh=(0, 255)):
-    return apply_thresh(get_luv(img, channel), thresh)
-
-
-def get_lab(img, channel):
-    lab = cv2.cvtColor(img, cv2.COLOR_RGB2LAB).astype(np.float)
-    if channel == 'l':
-        cha = lab[:, :, 0]
-    elif channel == 'a':
-        cha = lab[:, :, 1]
-    elif channel == 'b':
-        cha = lab[:, :, 2]
-    return cha
-
-def lab_threshold(img, channel='l', thresh=(0, 255)):
-    return apply_thresh(get_lab(img, channel), thresh)
 
 def draw(image, processed_image):
     f, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 9))
@@ -191,31 +77,20 @@ def draw(image, processed_image):
     plt.show()
 
 
-def reset_gamma(img, gamma=0.3):
-    return exposure.adjust_gamma(img, gamma)
 
-
-def perspective(img, mtx, dist, src, dst):
-    global M
-    undist = cv2.undistort(img, mtx, dist, None, mtx)
-
-    img_size = (img.shape[1], img.shape[0])
-
-    M = cv2.getPerspectiveTransform(src, dst)
-    warped = cv2.warpPerspective(undist, M, img_size)
-    return warped
 
 
 def process_thresh(img, s_thresh=(170, 255), sx_thresh=(20, 100)):
+    imageUtils = ImageUtils()
     img = np.copy(img)
 
-    img = reset_gamma(img)
+    img = imageUtils.reset_gamma(img)
 
-    l_channel = get_hls(img, 'l')
-    sobelx_binary = abs_sobel_thresh(l_channel, 'x', sobel_kernel=3, toGray=False, thresh=sx_thresh )
+    l_channel = imageUtils.get_hls(img, 'l')
+    sobelx_binary = imageUtils.abs_sobel_thresh(l_channel, 'x', sobel_kernel=3, toGray=False, thresh=sx_thresh )
 
-    s_channel = get_hls(img, 's')
-    s_binary = apply_thresh(s_channel, s_thresh)
+    s_channel = imageUtils.get_hls(img, 's')
+    s_binary = imageUtils.apply_thresh(s_channel, s_thresh)
 
     #color_binary = np.dstack((np.zeros_like(sobelx_binary), sobelx_binary, s_binary))
 
@@ -227,7 +102,7 @@ def process_thresh(img, s_thresh=(170, 255), sx_thresh=(20, 100)):
 #    processed_image = process_thresh(img, s_thresh, sx_thresh)
 #    return perspective(processed_image, mtx, dist, src, dst)
 
-def find_lines(warped_image):
+def blind_search(warped_image):
     binary_warped = warped_image
     # Assuming you have created a warped binary image called "binary_warped"
     # Take a histogram of the bottom half of the image
@@ -299,53 +174,141 @@ def find_lines(warped_image):
     rightx = nonzerox[right_lane_inds]
     righty = nonzeroy[right_lane_inds]
 
+    global left_fit, right_fit
     # Fit a second order polynomial to each
     left_fit = np.polyfit(lefty, leftx, 2)
     right_fit = np.polyfit(righty, rightx, 2)
 
+    ploty = np.linspace(0, binary_warped.shape[0] - 1, binary_warped.shape[0])
+    left_fitx = left_fit[0] * ploty ** 2 + left_fit[1] * ploty + left_fit[2]
+    right_fitx = right_fit[0] * ploty ** 2 + right_fit[1] * ploty + right_fit[2]
+
+    out_img[nonzeroy[left_lane_inds], nonzerox[left_lane_inds]] = [255, 0, 0]
+    out_img[nonzeroy[right_lane_inds], nonzerox[right_lane_inds]] = [0, 0, 255]
+    plt.imshow(out_img)
+    plt.plot(left_fitx, ploty, color='yellow')
+    plt.plot(right_fitx, ploty, color='yellow')
+    plt.xlim(0, 1280)
+    plt.ylim(720, 0)
+
+    return left_fitx, right_fitx, ploty
+
+def quick_search(warped_image):
+    binary_warped = warped_image
+    global left_fit, right_fit
+    # Assume you now have a new warped binary image
+    # from the next frame of video (also called "binary_warped")
+    # It's now much easier to find line pixels!
+    nonzero = binary_warped.nonzero()
+    nonzeroy = np.array(nonzero[0])
+    nonzerox = np.array(nonzero[1])
+    margin = 100
+    left_lane_inds = ((nonzerox > (left_fit[0] * (nonzeroy ** 2) + left_fit[1] * nonzeroy +
+                                   left_fit[2] - margin)) & (nonzerox < (left_fit[0] * (nonzeroy ** 2) +
+                                                                         left_fit[1] * nonzeroy + left_fit[
+                                                                             2] + margin)))
+
+    right_lane_inds = ((nonzerox > (right_fit[0] * (nonzeroy ** 2) + right_fit[1] * nonzeroy +
+                                    right_fit[2] - margin)) & (nonzerox < (right_fit[0] * (nonzeroy ** 2) +
+                                                                           right_fit[1] * nonzeroy + right_fit[
+                                                                               2] + margin)))
+
+    # Again, extract left and right line pixel positions
+    leftx = nonzerox[left_lane_inds]
+    lefty = nonzeroy[left_lane_inds]
+    rightx = nonzerox[right_lane_inds]
+    righty = nonzeroy[right_lane_inds]
+    # Fit a second order polynomial to each
+    left_fit = np.polyfit(lefty, leftx, 2)
+    right_fit = np.polyfit(righty, rightx, 2)
     # Generate x and y values for plotting
     ploty = np.linspace(0, binary_warped.shape[0] - 1, binary_warped.shape[0])
     left_fitx = left_fit[0] * ploty ** 2 + left_fit[1] * ploty + left_fit[2]
     right_fitx = right_fit[0] * ploty ** 2 + right_fit[1] * ploty + right_fit[2]
-    print(left_fitx.shape)
-    tmp = left_fit[0] * 0 ** 2 + left_fit[1] * 0+ left_fit[2]
-    print(tmp)
 
+    # Create an image to draw on and an image to show the selection window
+    out_img = np.dstack((binary_warped, binary_warped, binary_warped)) * 255
+    window_img = np.zeros_like(out_img)
+    # Color in left and right line pixels
     out_img[nonzeroy[left_lane_inds], nonzerox[left_lane_inds]] = [255, 0, 0]
     out_img[nonzeroy[right_lane_inds], nonzerox[right_lane_inds]] = [0, 0, 255]
 
-    #f, (ax) = plt.subplots(1, 1, figsize=(16, 9))
-    #ax.plot(left_fitx, ploty, color='yellow')
-    #ax.plot(right_fitx, ploty, color='yellow')
-    #ax.xlim(0, 1280)
-    #ax.ylim(720, 0)
-    #ax.imshow(out_img)
-    #plt.show()
-    #return out_img
+    # Generate a polygon to illustrate the search window area
+    # And recast the x and y points into usable format for cv2.fillPoly()
+    left_line_window1 = np.array([np.transpose(np.vstack([left_fitx - margin, ploty]))])
+    left_line_window2 = np.array([np.flipud(np.transpose(np.vstack([left_fitx + margin,
+                                                                    ploty])))])
+    left_line_pts = np.hstack((left_line_window1, left_line_window2))
+    right_line_window1 = np.array([np.transpose(np.vstack([right_fitx - margin, ploty]))])
+    right_line_window2 = np.array([np.flipud(np.transpose(np.vstack([right_fitx + margin,
+                                                                     ploty])))])
+    right_line_pts = np.hstack((right_line_window1, right_line_window2))
 
-    #return left_fitx, right_fitx, lefty, righty
+    # Draw the lane onto the warped blank image
+    cv2.fillPoly(window_img, np.int_([left_line_pts]), (0, 255, 0))
+    cv2.fillPoly(window_img, np.int_([right_line_pts]), (0, 255, 0))
+    result = cv2.addWeighted(out_img, 1, window_img, 0.3, 0)
+    plt.imshow(result)
+    plt.plot(left_fitx, ploty, color='yellow')
+    plt.plot(right_fitx, ploty, color='yellow')
+    plt.xlim(0, 1280)
+    plt.ylim(720, 0)
 
-   # warp_zero = np.zeros_like(binary_warped).astype(np.uint8)
-   # color_warp = np.dstack((warp_zero, warp_zero, warp_zero))
-    pts_left = np.array([np.flipud(np.transpose(np.vstack([left_fitx, ploty])))])
-    print(pts_left)
-   # pts_right = np.array([np.transpose(np.vstack([right_fitx, righty]))])
-   # pts = np.hstack((pts_left, pts_right))
-   # cv2.polylines(color_warp, np.int_([pts]), isClosed=False, color=(0,0,255), thickness = 40)
-   # cv2.fillPoly(color_warp, np.int_([pts]), (0,255, 0))
-   # newwarp = cv2.warpPerspective(color_warp, M, (binary_warped.shape[1], binary_warped.shape[0]))
-   # result = cv2.addWeighted((test3), 1, newwarp, 0.5, 0)
 
-   # f, (ax) = plt.subplots(1, 1, figsize=(16, 9))
-   # #ax.plot(left_fitx, ploty, color='yellow')
-   # #ax.plot(right_fitx, ploty, color='yellow')
-   # ax.imshow(result)
-   # plt.xlim(0, 1280)
-   # plt.ylim(720, 0)
-   # plt.show()
 
-    return left_fitx, right_fitx, ploty
 
+def measuring_curvature():
+    ploty = np.linspace(0, 719, num=720)  # to cover same y-range as image
+    print(ploty)
+    quadratic_coeff = 3e-4  # arbitrary quadratic coefficient
+    # For each y position generate random x position within +/-50 pix
+    # of the line base position in each case (x=200 for left, and x=900 for right)
+    leftx = np.array([200 + (y ** 2) * quadratic_coeff + np.random.randint(-50, high=51)
+                      for y in ploty])
+    rightx = np.array([900 + (y ** 2) * quadratic_coeff + np.random.randint(-50, high=51)
+                       for y in ploty])
+    print(leftx.shape)
+
+
+    leftx = leftx[::-1]  # Reverse to match top-to-bottom in y
+    rightx = rightx[::-1]  # Reverse to match top-to-bottom in y
+
+    # Fit a second order polynomial to pixel positions in each fake lane line
+    left_fit = np.polyfit(ploty, leftx, 2)
+    left_fitx = left_fit[0] * ploty ** 2 + left_fit[1] * ploty + left_fit[2]
+    right_fit = np.polyfit(ploty, rightx, 2)
+    right_fitx = right_fit[0] * ploty ** 2 + right_fit[1] * ploty + right_fit[2]
+
+    # Plot up the fake data
+    mark_size = 3
+    plt.plot(leftx, ploty, 'o', color='red', markersize=mark_size)
+    plt.plot(rightx, ploty, 'o', color='blue', markersize=mark_size)
+    plt.xlim(0, 1280)
+    plt.ylim(0, 720)
+    plt.plot(left_fitx, ploty, color='green', linewidth=3)
+    plt.plot(right_fitx, ploty, color='green', linewidth=3)
+    plt.gca().invert_yaxis()  # to visualize as we do the images
+    plt.show()
+
+    y_eval = np.max(ploty)
+    left_curverad = ((1 + (2 * left_fit[0] * y_eval + left_fit[1]) ** 2) ** 1.5) / np.absolute(2 * left_fit[0])
+    right_curverad = ((1 + (2 * right_fit[0] * y_eval + right_fit[1]) ** 2) ** 1.5) / np.absolute(2 * right_fit[0])
+    print(left_curverad, right_curverad)
+
+    # Define conversions in x and y from pixels space to meters
+    ym_per_pix = 30 / 720  # meters per pixel in y dimension
+    xm_per_pix = 3.7 / 700  # meters per pixel in x dimension
+
+    # Fit new polynomials to x,y in world space
+    left_fit_cr = np.polyfit(ploty * ym_per_pix, leftx * xm_per_pix, 2)
+    right_fit_cr = np.polyfit(ploty * ym_per_pix, rightx * xm_per_pix, 2)
+    # Calculate the new radii of curvature
+    left_curverad = ((1 + (2 * left_fit_cr[0] * y_eval * ym_per_pix + left_fit_cr[1]) ** 2) ** 1.5) / np.absolute(
+        2 * left_fit_cr[0])
+    right_curverad = ((1 + (2 * right_fit_cr[0] * y_eval * ym_per_pix + right_fit_cr[1]) ** 2) ** 1.5) / np.absolute(
+        2 * right_fit_cr[0])
+    # Now our radius of curvature is in meters
+    print(left_curverad, 'm', right_curverad, 'm')
 
 def pipeline(image):
     src = np.float32([[190, 720], [589, 457], [698, 457], [1145, 720]])
@@ -373,7 +336,8 @@ def pipeline(image):
     #left_fitx, right_fitx, lefty, righty = find_lines(result)
     #print(lefty.shape)
 
-    left_fitx, right_fitx, ploty = find_lines(result)
+    left_fitx, right_fitx, ploty = blind_search(result)
+    quick_search(result)
 
     origin_image = perspective(image, mtx, dist, src, dst)
     f, (ax) = plt.subplots(1, 1, figsize=(16, 9))
@@ -402,8 +366,12 @@ def pipeline(image):
 
 #test_straight_lines1 = mpimg.imread('../test_images/straight_lines1.jpg')
 #pipelined = pipeline(test_straight_lines1)
-test3 = mpimg.imread('../test_images/test4.jpg')
-pipelined = pipeline(test3)
+test3 = mpimg.imread('../test_images/test6.jpg')
+#pipelined = pipeline(test3)
+imageUtils = ImageUtils(test3)
+#blind_search(test3)
+#quick_search(test3)
+#measuring_curvature()
 #print(pipelined.nonzero())
 #draw(test3, pipelined)
 
