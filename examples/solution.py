@@ -196,13 +196,14 @@ def reset_gamma(img, gamma=0.3):
 
 
 def perspective(img, mtx, dist, src, dst):
+    global M
     undist = cv2.undistort(img, mtx, dist, None, mtx)
 
     img_size = (img.shape[1], img.shape[0])
 
     M = cv2.getPerspectiveTransform(src, dst)
     warped = cv2.warpPerspective(undist, M, img_size)
-    return warped, M
+    return warped
 
 
 def process_thresh(img, s_thresh=(170, 255), sx_thresh=(20, 100)):
@@ -222,11 +223,11 @@ def process_thresh(img, s_thresh=(170, 255), sx_thresh=(20, 100)):
     color_binary[(s_binary > 0) | (sobelx_binary > 0)] = 1
     return color_binary
 
-def my_pipeline(img,  mtx, dist, src, dst, s_thresh, sx_thresh):
-    processed_image = process_thresh(img, s_thresh, sx_thresh)
-    return perspective(processed_image, mtx, dist, src, dst)
+#def pipeline(img,  mtx, dist, src, dst, s_thresh, sx_thresh):
+#    processed_image = process_thresh(img, s_thresh, sx_thresh)
+#    return perspective(processed_image, mtx, dist, src, dst)
 
-def draw_rect(warped_image):
+def find_lines(warped_image):
     binary_warped = warped_image
     # Assuming you have created a warped binary image called "binary_warped"
     # Take a histogram of the bottom half of the image
@@ -284,9 +285,9 @@ def draw_rect(warped_image):
         right_lane_inds.append(good_right_inds)
         # If you found > minpix pixels, recenter next window on their mean position
         if len(good_left_inds) > minpix:
-            leftx_current = np.int(np.mean(nonzerox[good_left_inds]))
+            leftx_current = np.int(np.median(nonzerox[good_left_inds]))
         if len(good_right_inds) > minpix:
-            rightx_current = np.int(np.mean(nonzerox[good_right_inds]))
+            rightx_current = np.int(np.median(nonzerox[good_right_inds]))
 
     # Concatenate the arrays of indices
     left_lane_inds = np.concatenate(left_lane_inds)
@@ -306,16 +307,44 @@ def draw_rect(warped_image):
     ploty = np.linspace(0, binary_warped.shape[0] - 1, binary_warped.shape[0])
     left_fitx = left_fit[0] * ploty ** 2 + left_fit[1] * ploty + left_fit[2]
     right_fitx = right_fit[0] * ploty ** 2 + right_fit[1] * ploty + right_fit[2]
+    print(left_fitx.shape)
+    tmp = left_fit[0] * 0 ** 2 + left_fit[1] * 0+ left_fit[2]
+    print(tmp)
 
     out_img[nonzeroy[left_lane_inds], nonzerox[left_lane_inds]] = [255, 0, 0]
     out_img[nonzeroy[right_lane_inds], nonzerox[right_lane_inds]] = [0, 0, 255]
-    plt.plot(left_fitx, ploty, color='yellow')
-    plt.plot(right_fitx, ploty, color='yellow')
-    plt.xlim(0, 1280)
-    plt.ylim(720, 0)
-    #plt.imshow(out_img)
+
+    #f, (ax) = plt.subplots(1, 1, figsize=(16, 9))
+    #ax.plot(left_fitx, ploty, color='yellow')
+    #ax.plot(right_fitx, ploty, color='yellow')
+    #ax.xlim(0, 1280)
+    #ax.ylim(720, 0)
+    #ax.imshow(out_img)
     #plt.show()
-    return out_img
+    #return out_img
+
+    #return left_fitx, right_fitx, lefty, righty
+
+   # warp_zero = np.zeros_like(binary_warped).astype(np.uint8)
+   # color_warp = np.dstack((warp_zero, warp_zero, warp_zero))
+    pts_left = np.array([np.flipud(np.transpose(np.vstack([left_fitx, ploty])))])
+    print(pts_left)
+   # pts_right = np.array([np.transpose(np.vstack([right_fitx, righty]))])
+   # pts = np.hstack((pts_left, pts_right))
+   # cv2.polylines(color_warp, np.int_([pts]), isClosed=False, color=(0,0,255), thickness = 40)
+   # cv2.fillPoly(color_warp, np.int_([pts]), (0,255, 0))
+   # newwarp = cv2.warpPerspective(color_warp, M, (binary_warped.shape[1], binary_warped.shape[0]))
+   # result = cv2.addWeighted((test3), 1, newwarp, 0.5, 0)
+
+   # f, (ax) = plt.subplots(1, 1, figsize=(16, 9))
+   # #ax.plot(left_fitx, ploty, color='yellow')
+   # #ax.plot(right_fitx, ploty, color='yellow')
+   # ax.imshow(result)
+   # plt.xlim(0, 1280)
+   # plt.ylim(720, 0)
+   # plt.show()
+
+    return left_fitx, right_fitx, ploty
 
 
 def pipeline(image):
@@ -337,7 +366,25 @@ def pipeline(image):
     # draw(test_ch6, result)
     # result, M = pipeline(test_ch5, mtx, dist, src, dst,s_thresh=(60, 200), sx_thresh=(20, 100))
     # draw(test_ch1, result)
-    result, M = my_pipeline(image, mtx, dist, src, dst, s_thresh=(60, 200), sx_thresh=(20, 100))
+
+    #result, M = pipeline(image, mtx, dist, src, dst, s_thresh=(60, 200), sx_thresh=(20, 100))
+    processed_image = process_thresh(image, s_thresh=(60, 200), sx_thresh=(20, 100))
+    result = perspective(processed_image, mtx, dist, src, dst)
+    #left_fitx, right_fitx, lefty, righty = find_lines(result)
+    #print(lefty.shape)
+
+    left_fitx, right_fitx, ploty = find_lines(result)
+
+    origin_image = perspective(image, mtx, dist, src, dst)
+    f, (ax) = plt.subplots(1, 1, figsize=(16, 9))
+    ax.plot(left_fitx, ploty, color='yellow')
+    ax.plot(right_fitx, ploty, color='yellow')
+    ax.imshow(origin_image)
+    plt.xlim(0, 1280)
+    plt.ylim(720, 0)
+    plt.show()
+
+
     #
     #
     # mag_image = mag_thresh(image, sobel_kernel=3, mag_thresh=(20, 100))
@@ -349,33 +396,18 @@ def pipeline(image):
     # result, M = perspective(dir_image, mtx, dist, src, dst)
     # draw(dir_image, result)
     #
-    #
-    #
-    #
-    ### To speed up the testing process you may want to try your pipeline on a shorter subclip of the video
-    ### To do so add .subclip(start_second,end_second) to the end of the line below
-    ### Where start_second and end_second are integer values representing the start and end of the subclip
-    ### You may also uncomment the following line for a subclip of the first 5 seconds
 
     #
-    #
-    #
-    #
-    # HTML("""
-    # <video width="960" height="540" controls>
-    #  <source src="{0}">
-    # </video>
-    # """.format(white_output))
-    #
-    #
-    #
-    #
-    return draw_rect(result)
+    #return find_lines(result)
 
+#test_straight_lines1 = mpimg.imread('../test_images/straight_lines1.jpg')
+#pipelined = pipeline(test_straight_lines1)
+test3 = mpimg.imread('../test_images/test4.jpg')
+pipelined = pipeline(test3)
+#print(pipelined.nonzero())
+#draw(test3, pipelined)
 
-white_output = '../test_videos_output/test.mp4'
-clip1 = VideoFileClip("../project_video.mp4")
-white_clip = clip1.fl_image(pipeline) #NOTE: this function expects color images!!
-white_clip.write_videofile(white_output, audio=False)
-
-#get_ipython().magic('time white_clip.write_videofile(white_output, audio=False)')
+#white_output = '../test_videos_output/test.mp4'
+#clip1 = VideoFileClip("../project_video.mp4")
+#white_clip = clip1.fl_image(pipeline) #NOTE: this function expects color images!!
+#white_clip.write_videofile(white_output, audio=False)
