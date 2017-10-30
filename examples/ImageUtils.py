@@ -11,8 +11,9 @@ class ImageUtils(object):
 
     def apply_thresh(self, processed_binary, thresh):
         binary = np.zeros_like(processed_binary)
-        self.draw(processed_binary, binary)
+        #self.draw(processed_binary, binary)
         binary[(processed_binary >= thresh[0]) & (processed_binary <= thresh[1])] = 1
+        #print(binary)
 
         return binary
 

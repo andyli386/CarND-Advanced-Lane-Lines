@@ -8,19 +8,17 @@ class TestImageUtils(TestCase):
     imageUtils = ImageUtils()
 
     def test_get_abs_sobel(self):
-        processed = self.imageUtils.get_abs_sobel(self.test6, 'x', sobel_kernel=3, toGray=False)
-        processed1 = self.imageUtils.apply_thresh(processed, thresh=(20, 100))
-        self.imageUtils.draw(self.test6, processed1)
+        processed = self.imageUtils.get_abs_sobel(self.test6, 'x', sobel_kernel=3, toGray=True)
+        self.imageUtils.draw(self.test6, processed)
 
-'''
 
     def test_abs_sobel_thresh(self):
-        processed = self.imageUtils.abs_sobel_thresh(self.test6, 'x', sobel_kernel=3, toGray=False, thresh=(20, 100))
-
+        processed = self.imageUtils.abs_sobel_thresh(self.test6, 'x', sobel_kernel=3, toGray=True, thresh=(20, 100))
         self.imageUtils.draw(self.test6, processed)
         #self.fail()
 
 
+'''
     def test_mag_thresh(self):
         self.imageUtils.mag_thresh(self.test6)
         self.fail()
