@@ -63,23 +63,6 @@ def get_from_pickle(pickleName="../camera_cal/wide_dist_pickle.p"):
     return mtx, dist
 
 
-
-def draw(image, processed_image):
-    f, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 9))
-    f.tight_layout()
-
-    ax1.imshow(image, cmap='gray')
-    ax1.set_title('Original Image', fontsize=20)
-
-    ax2.imshow(processed_image, cmap='gray')
-    ax2.set_title('Processed Result', fontsize=20)
-    #plt.subplots_adjust(left=0., right=1, top=2., bottom=0.)
-    plt.show()
-
-
-
-
-
 def process_thresh(img, s_thresh=(170, 255), sx_thresh=(20, 100)):
     imageUtils = ImageUtils()
     img = np.copy(img)
@@ -183,13 +166,17 @@ def blind_search(warped_image):
     left_fitx = left_fit[0] * ploty ** 2 + left_fit[1] * ploty + left_fit[2]
     right_fitx = right_fit[0] * ploty ** 2 + right_fit[1] * ploty + right_fit[2]
 
-    out_img[nonzeroy[left_lane_inds], nonzerox[left_lane_inds]] = [255, 0, 0]
-    out_img[nonzeroy[right_lane_inds], nonzerox[right_lane_inds]] = [0, 0, 255]
-    plt.imshow(out_img)
-    plt.plot(left_fitx, ploty, color='yellow')
-    plt.plot(right_fitx, ploty, color='yellow')
-    plt.xlim(0, 1280)
-    plt.ylim(720, 0)
+    #out_img[nonzeroy[left_lane_inds], nonzerox[left_lane_inds]] = [255, 0, 0]
+    #out_img[nonzeroy[right_lane_inds], nonzerox[right_lane_inds]] = [0, 0, 255]
+    #plt.imshow(out_img)
+    #plt.plot(left_fitx, ploty, color='yellow')
+    #plt.plot(right_fitx, ploty, color='yellow')
+    #plt.xlim(0, 1280)
+    #plt.ylim(720, 0)
+
+
+
+
 
     return left_fitx, right_fitx, ploty
 
@@ -253,6 +240,7 @@ def quick_search(warped_image):
     plt.plot(right_fitx, ploty, color='yellow')
     plt.xlim(0, 1280)
     plt.ylim(720, 0)
+    plt.show()
 
 
 
@@ -332,21 +320,41 @@ def pipeline(image):
 
     #result, M = pipeline(image, mtx, dist, src, dst, s_thresh=(60, 200), sx_thresh=(20, 100))
     processed_image = process_thresh(image, s_thresh=(60, 200), sx_thresh=(20, 100))
-    result = perspective(processed_image, mtx, dist, src, dst)
+    result = imageUtils.perspective(processed_image, mtx, dist, src, dst)
     #left_fitx, right_fitx, lefty, righty = find_lines(result)
     #print(lefty.shape)
 
     left_fitx, right_fitx, ploty = blind_search(result)
-    quick_search(result)
+    #quick_search(result)
 
-    origin_image = perspective(image, mtx, dist, src, dst)
-    f, (ax) = plt.subplots(1, 1, figsize=(16, 9))
-    ax.plot(left_fitx, ploty, color='yellow')
-    ax.plot(right_fitx, ploty, color='yellow')
-    ax.imshow(origin_image)
-    plt.xlim(0, 1280)
-    plt.ylim(720, 0)
-    plt.show()
+    # Create an image to draw the lines on
+    warp_zero = np.zeros_like(image[:,:,-1]).astype(np.uint8)
+    color_warp = np.dstack((warp_zero, warp_zero, warp_zero))
+
+    # Recast the x and y points into usable format for cv2.fillPoly()
+    pts_left = np.array([np.transpose(np.vstack([left_fitx, ploty]))])
+    pts_right = np.array([np.flipud(np.transpose(np.vstack([right_fitx, ploty])))])
+    pts = np.hstack((pts_left, pts_right))
+
+    # Draw the lane onto the warped blank image
+    cv2.fillPoly(color_warp, np.int_([pts]), (0, 255, 0))
+
+    # Warp the blank back to original image space using inverse perspective matrix (Minv)
+    newwarp = cv2.warpPerspective(color_warp, imageUtils.M1, imageUtils.img_size)
+    # Combine the result with the original image
+    result = cv2.addWeighted(image, 1, newwarp, 0.3, 0)
+    #plt.imshow(result)
+    #plt.show()
+
+    return result
+    #origin_image = imageUtils.perspective(image, mtx, dist, src, dst)
+    #f, (ax) = plt.subplots(1, 1, figsize=(16, 9))
+    #ax.plot(left_fitx, ploty, color='yellow')
+    #ax.plot(right_fitx, ploty, color='yellow')
+    #ax.imshow(origin_image)
+    #plt.xlim(0, 1280)
+    #plt.ylim(720, 0)
+    #plt.show()
 
 
     #
@@ -366,16 +374,18 @@ def pipeline(image):
 
 #test_straight_lines1 = mpimg.imread('../test_images/straight_lines1.jpg')
 #pipelined = pipeline(test_straight_lines1)
-test3 = mpimg.imread('../test_images/test6.jpg')
+
+#test3 = mpimg.imread('../test_images/test6.jpg')
+imageUtils = ImageUtils()
 #pipelined = pipeline(test3)
-imageUtils = ImageUtils(test3)
+
 #blind_search(test3)
 #quick_search(test3)
 #measuring_curvature()
 #print(pipelined.nonzero())
 #draw(test3, pipelined)
 
-#white_output = '../test_videos_output/test.mp4'
-#clip1 = VideoFileClip("../project_video.mp4")
-#white_clip = clip1.fl_image(pipeline) #NOTE: this function expects color images!!
-#white_clip.write_videofile(white_output, audio=False)
+white_output = '../test_videos_output/test.mp4'
+clip1 = VideoFileClip("../project_video.mp4")
+white_clip = clip1.fl_image(pipeline) #NOTE: this function expects color images!!
+white_clip.write_videofile(white_output, audio=False)
