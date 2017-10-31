@@ -2,65 +2,14 @@
 import numpy as np
 import cv2
 
-import glob
 import matplotlib.pyplot as plt
 import matplotlib.image as mpimg
-import pickle
 from skimage import data, exposure, img_as_float
 from moviepy.editor import VideoFileClip
-from IPython.display import HTML
-from IPython import get_ipython
 
 from ImageUtils import ImageUtils
+from Calibration import Calibration
 import Line
-
-def get_obj_img_points():
-    # prepare object points, like (0,0,0), (1,0,0), (2,0,0) ....,(6,5,0)
-    objp = np.zeros((6*9,3), np.float32)
-    objp[:,:2] = np.mgrid[0:9,0:6].T.reshape(-1,2)
-
-
-    # Arrays to store object points and image points from all the images.
-    objpoints = [] # 3d points in real world space
-    imgpoints = [] # 2d points in image plane.
-
-    # Make a list of calibration images
-    images = glob.glob('../camera_cal/calibration*.jpg')
-
-    # Step through the list and search for chessboard corners
-    for fname in images:
-        img = cv2.imread(fname)
-        gray = cv2.cvtColor(img,cv2.COLOR_BGR2GRAY)
-
-        # Find the chessboard corners
-        ret, corners = cv2.findChessboardCorners(gray, (9,6),None)
-
-        # If found, add object points, image points
-        if ret == True:
-            objpoints.append(objp)
-            imgpoints.append(corners)
-            
-    return objpoints, imgpoints
-
-
-
-
-def save_to_pickle(objpoints, imgpoints, imageName, pickleName="../camera_cal/wide_dist_pickle.p"):
-    img = cv2.imread(imageName)
-    img_size = (img.shape[1], img.shape[0])
-    ret, mtx, dist, rvecs, tvecs = cv2.calibrateCamera(objpoints, imgpoints, img_size,None,None)
-
-    dist_pickle = {}
-    dist_pickle["mtx"] = mtx
-    dist_pickle["dist"] = dist
-    pickle.dump( dist_pickle, open(pickleName, "wb" ) )
-
-
-def get_from_pickle(pickleName="../camera_cal/wide_dist_pickle.p"):
-    dist_pickle = pickle.load( open(pickleName , "rb" ) )
-    mtx = dist_pickle["mtx"]
-    dist = dist_pickle["dist"]
-    return mtx, dist
 
 
 def process_thresh(img, s_thresh=(170, 255), sx_thresh=(20, 100)):
@@ -173,10 +122,6 @@ def blind_search(warped_image):
     #plt.plot(right_fitx, ploty, color='yellow')
     #plt.xlim(0, 1280)
     #plt.ylim(720, 0)
-
-
-
-
 
     return left_fitx, right_fitx, ploty
 
@@ -299,30 +244,20 @@ def measuring_curvature():
     print(left_curverad, 'm', right_curverad, 'm')
 
 def pipeline(image):
+    imageUtils = ImageUtils()
     src = np.float32([[190, 720], [589, 457], [698, 457], [1145, 720]])
     dst = np.float32([[340, 720], [340, 0], [995, 0], [995, 720]])
-    objpoints, imgpoints = get_obj_img_points()
-    mtx, dist = get_from_pickle()
+    calibration =  Calibration()
+    mtx, dist = calibration.get_from_pickle()
 
     #test_straight_lines1 = mpimg.imread('../test_images/straight_lines1.jpg')
     #test_ch1 = mpimg.imread('../test_images1/test_ch1.jpg')
     #test_ch5 = mpimg.imread('../test_images1/test_ch5.jpg')
     #test_ch6 = mpimg.imread('../test_images1/test_ch6.jpg')
 
-    # gradx = abs_sobel_thresh(image, orient='x', sobel_kernel=3, thresh=(20, 100))
-    # grady = abs_sobel_thresh(image, orient='y', sobel_kernel=3, thresh=(20, 100))
-    #
-    # result, M = perspective(gradx, mtx, dist, src, dst)
-    # result, M = pipeline(test_ch6, mtx, dist, src, dst,s_thresh=(170, 255), sx_thresh=(20, 100))
-    # draw(test_ch6, result)
-    # result, M = pipeline(test_ch5, mtx, dist, src, dst,s_thresh=(60, 200), sx_thresh=(20, 100))
-    # draw(test_ch1, result)
-
     #result, M = pipeline(image, mtx, dist, src, dst, s_thresh=(60, 200), sx_thresh=(20, 100))
     processed_image = process_thresh(image, s_thresh=(60, 200), sx_thresh=(20, 100))
     result = imageUtils.perspective(processed_image, mtx, dist, src, dst)
-    #left_fitx, right_fitx, lefty, righty = find_lines(result)
-    #print(lefty.shape)
 
     left_fitx, right_fitx, ploty = blind_search(result)
     #quick_search(result)
@@ -343,41 +278,16 @@ def pipeline(image):
     newwarp = cv2.warpPerspective(color_warp, imageUtils.M1, imageUtils.img_size)
     # Combine the result with the original image
     result = cv2.addWeighted(image, 1, newwarp, 0.3, 0)
-    #plt.imshow(result)
-    #plt.show()
+    plt.imshow(result)
+    plt.show()
 
     return result
-    #origin_image = imageUtils.perspective(image, mtx, dist, src, dst)
-    #f, (ax) = plt.subplots(1, 1, figsize=(16, 9))
-    #ax.plot(left_fitx, ploty, color='yellow')
-    #ax.plot(right_fitx, ploty, color='yellow')
-    #ax.imshow(origin_image)
-    #plt.xlim(0, 1280)
-    #plt.ylim(720, 0)
-    #plt.show()
-
-
-    #
-    #
-    # mag_image = mag_thresh(image, sobel_kernel=3, mag_thresh=(20, 100))
-    # result, M = perspective(mag_image, mtx, dist, src, dst)
-    # draw(mag_image, result)
-    #
-    #
-    # dir_image = dir_threshold(image, sobel_kernel=3, thresh=(0.6, 1.3))
-    # result, M = perspective(dir_image, mtx, dist, src, dst)
-    # draw(dir_image, result)
-    #
-
-    #
-    #return find_lines(result)
 
 #test_straight_lines1 = mpimg.imread('../test_images/straight_lines1.jpg')
 #pipelined = pipeline(test_straight_lines1)
 
-#test3 = mpimg.imread('../test_images/test6.jpg')
-imageUtils = ImageUtils()
-#pipelined = pipeline(test3)
+test3 = mpimg.imread('../test_images/test6.jpg')
+pipelined = pipeline(test3)
 
 #blind_search(test3)
 #quick_search(test3)
@@ -385,7 +295,7 @@ imageUtils = ImageUtils()
 #print(pipelined.nonzero())
 #draw(test3, pipelined)
 
-white_output = '../test_videos_output/test.mp4'
-clip1 = VideoFileClip("../project_video.mp4")
-white_clip = clip1.fl_image(pipeline) #NOTE: this function expects color images!!
-white_clip.write_videofile(white_output, audio=False)
+#white_output = '../test_videos_output/test.mp4'
+#clip1 = VideoFileClip("../project_video.mp4")
+#white_clip = clip1.fl_image(pipeline) #NOTE: this function expects color images!!
+#white_clip.write_videofile(white_output, audio=False)
