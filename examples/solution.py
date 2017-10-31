@@ -7,11 +7,10 @@ from moviepy.editor import VideoFileClip
 
 from ImageUtils import ImageUtils
 from Calibration import Calibration
-from Line import Line
+from Detector import Detector
 
 
 def process_thresh(img, s_thresh=(170, 255), sx_thresh=(20, 100)):
-    imageUtils = ImageUtils()
     img = np.copy(img)
 
     img = imageUtils.reset_gamma(img)
@@ -29,8 +28,7 @@ def process_thresh(img, s_thresh=(170, 255), sx_thresh=(20, 100)):
     return color_binary
 
 def pipeline(image):
-    imageUtils = ImageUtils()
-    lines = Line()
+    detector = Detector()
     src = np.float32([[190, 720], [589, 457], [698, 457], [1145, 720]])
     dst = np.float32([[340, 720], [340, 0], [995, 0], [995, 720]])
     calibration =  Calibration()
@@ -40,23 +38,26 @@ def pipeline(image):
     processed_image = process_thresh(image, s_thresh=(60, 200), sx_thresh=(20, 100))
     result = imageUtils.perspective(processed_image, mtx, dist, src, dst)
 
-    left_fitx, right_fitx, ploty = lines.blind_search(result)
+    detector.set_binary_image(result)
+    detector.blind_search()
+    left_fitx, right_fitx, ploty = detector.get_fit()
     #quick_search(result)
-    result = lines.drawOnNormalPic(image, imageUtils, left_fitx, right_fitx, ploty, True)
+    result = imageUtils.drawOnNormalPic(image, imageUtils, left_fitx, right_fitx, ploty, True)
 
 
 
     return result
 
-#test_straight_lines1 = mpimg.imread('../test_images/straight_lines1.jpg')
-#pipelined = pipeline(test_straight_lines1)
+#test_straight_detector1 = mpimg.imread('../test_images/straight_detector1.jpg')
+#pipelined = pipeline(test_straight_detector1)
 
-#test_straight_lines1 = mpimg.imread('../test_images/straight_lines1.jpg')
+#test_straight_detector1 = mpimg.imread('../test_images/straight_detector1.jpg')
 #test_ch1 = mpimg.imread('../test_images1/test_ch1.jpg')
 #test_ch5 = mpimg.imread('../test_images1/test_ch5.jpg')
 #test_ch6 = mpimg.imread('../test_images1/test_ch6.jpg')
 
 test3 = mpimg.imread('../test_images/test6.jpg')
+imageUtils = ImageUtils()
 pipelined = pipeline(test3)
 
 #blind_search(test3)
