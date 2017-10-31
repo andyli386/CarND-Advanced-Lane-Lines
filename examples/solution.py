@@ -41,7 +41,12 @@ def pipeline(image):
     detector.set_binary_image(result)
     detector.blind_search()
     left_fitx, right_fitx, ploty = detector.get_fit()
-    #quick_search(result)
+    result = imageUtils.drawOnNormalPic(image, imageUtils, left_fitx, right_fitx, ploty, True)
+
+
+    detector.set_binary_image(result)
+    detector.quick_search()
+    left_fitx, right_fitx, ploty = detector.get_fit()
     result = imageUtils.drawOnNormalPic(image, imageUtils, left_fitx, right_fitx, ploty, True)
 
 
@@ -56,7 +61,7 @@ def pipeline(image):
 #test_ch5 = mpimg.imread('../test_images1/test_ch5.jpg')
 #test_ch6 = mpimg.imread('../test_images1/test_ch6.jpg')
 
-test3 = mpimg.imread('../test_images/test6.jpg')
+test3 = mpimg.imread('../test_images/test3.jpg')
 imageUtils = ImageUtils()
 pipelined = pipeline(test3)
 
