@@ -125,6 +125,30 @@ class ImageUtils(object):
         return self.apply_thresh(self.get_lab(image, channel), thresh)
 
 
+    def luv_lab_filter(self, image, l_thresh=(195, 255), b_thresh=(140, 200)):
+        image = self.reset_gamma(image)
+
+        l_cha = self.luv_threshold(image, channel='l', thresh=l_thresh)
+        b_cha = self.lab_threshold(image, channel='b', thresh=b_thresh)
+
+        combine = np.zeros_like(l_cha)
+        combine[(l_cha == 1) | (b_cha == 1)] = 1
+
+        return combine
+
+    def hls_sobel_filter(self, image, s_thresh=(170, 255), sx_thresh=(20, 100)):
+        image = self.reset_gamma(image)
+
+        l_channel = self.get_hls(image, 'l')
+        sobelx_binary = self.abs_sobel_thresh(l_channel, 'x', sobel_kernel=3, toGray=False, thresh=sx_thresh)
+
+        s_channel = self.get_hls(image, 's')
+        s_binary = self.apply_thresh(s_channel, s_thresh)
+
+        combine = np.zeros_like(s_binary)
+        combine[(s_binary > 0) | (sobelx_binary > 0)] = 1
+        return combine
+
     def reset_gamma(self, image, gamma=0.3):
         return exposure.adjust_gamma(image, gamma)
 
