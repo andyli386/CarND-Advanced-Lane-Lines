@@ -1,15 +1,16 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import cv2
-from Line import Line
+from Line import Line, LineType
+
 
 
 class Detector(object):
     def __init__(self):
-        self.__leftLine, self.__rightLine = Line(), Line()
+        self.__leftLine, self.__rightLine = Line(LineType.left), Line(LineType.right)
         self.__nwindows = 9
         # Set the width of the windows +/- margin
-        self.__margin = 100
+        self.__margin = 45
         # Set minimum number of pixels found to recenter window
         self.__minpix = 50
 
@@ -21,6 +22,34 @@ class Detector(object):
         self.__nonzeroy = np.array(nonzero[0])
         self.__nonzerox = np.array(nonzero[1])
         self.__window_height = np.int(self.__binary_image.shape[0] / self.__nwindows)
+        self.__midpoint = np.int(self.__binary_image.shape[1] / 2)
+
+    def blind_search(self, line):
+        base = self.__get_base_new(line.lineType)
+        window_x_low = base - self.__margin
+        window_x_high = base + self.__margin
+
+
+
+        pass
+
+    def __get_base_new(self, lineType):
+        small_window_bottom = self.__binary_image.shape[0]
+        small_window_top = self.__binary_image.shape[0] - self.__window_height
+
+        small_window_histogram = np.sum(self.__binary_image[small_window_top:small_window_bottom, :], axis=0)
+        all_histogram = np.sum(self.__binary_image[200:, :], axis=0)
+
+        if lineType == LineType.right:
+            base = (np.argmax(small_window_histogram[self.mid_point:-60]) + self.mid_point) \
+                if np.argmax(small_window_histogram[self.mid_point:-60]) > 0 \
+                else (np.argmax(all_histogram[self.mid_point:]) + self.mid_point)
+        else:
+            base = np.argmax(small_window_histogram[:self.mid_point]) \
+                if np.argmax(small_window_histogram[:self.mid_point]) > 0 \
+                else np.argmax(all_histogram[:self.mid_point])
+        return base
+
 
     def blind_search(self):
         leftx_base, rightx_base = self.__get_base()

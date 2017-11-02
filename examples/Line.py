@@ -1,11 +1,17 @@
+from enum import Enum
+
 import numpy as np
 import cv2
 
 import matplotlib.pyplot as plt
 
+class LineType(Enum):
+    left = 0
+    right = 1
 
 class Line(object):
-    def __init__(self):
+    def __init__(self, lineType):
+        self.lineType = lineType
         # was the line detected in the last iteration?
         self.detected = False
         # x values of the last n fits of the line

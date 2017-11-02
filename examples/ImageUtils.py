@@ -175,7 +175,7 @@ class ImageUtils(object):
         # plt.subplots_adjust(left=0., right=1, top=2., bottom=0.)
         plt.show()
 
-    def drawOnNormalPic(self, image, imageUtils, left_fitx, right_fitx, ploty, plot=False):
+    def draw_on_origin_image(self, image, imageUtils, left_fitx, right_fitx, ploty, plot=False):
         # Create an image to draw the lines on
         warp_zero = np.zeros_like(image[:, :, -1]).astype(np.uint8)
         color_warp = np.dstack((warp_zero, warp_zero, warp_zero))

@@ -28,7 +28,7 @@ def pipeline(image):
     detector.set_binary_image(result)
     detector.blind_search()
     left_fitx, right_fitx, ploty = detector.get_fit()
-    result = imageUtils.drawOnNormalPic(image, imageUtils, left_fitx, right_fitx, ploty, False)
+    result = imageUtils.draw_on_origin_image(image, imageUtils, left_fitx, right_fitx, ploty, False)
 
 
     #detector.set_binary_image(result)
