@@ -25,9 +25,21 @@ class Detector(object):
         self.__midpoint = np.int(self.__binary_image.shape[1] / 2)
 
     def blind_search(self, line):
-        base = self.__get_base_new(line.lineType)
+        base, window_bottom, window_top = self.__get_base_new(line.lineType)
         window_x_low = base - self.__margin
         window_x_high = base + self.__margin
+
+        x_idx = np.where(((window_x_low < self.__nonzerox) & (self.__nonzerox < window_x_high)
+                          & ((self.__nonzeroy > window_top) & (self.__nonzeroy < window_bottom))))
+        x_window, y_window = self.__nonzerox[x_idx], self.__nonzeroy[x_idx]
+        #cv2.rectangle(out_img, (window_x_low, window_top), (window_x_high, window_bottom),
+        #              (0, 255, 0), 2)
+        if np.sum(x_window) != 0:
+            line.allx.extend(x_window)
+            line.ally.extend(y_window)
+        if len(x_idx[0]) > self.__minpix:
+            base = np.int(np.mean(x_window))
+
 
 
 
@@ -48,7 +60,7 @@ class Detector(object):
             base = np.argmax(small_window_histogram[:self.mid_point]) \
                 if np.argmax(small_window_histogram[:self.mid_point]) > 0 \
                 else np.argmax(all_histogram[:self.mid_point])
-        return base
+        return base, small_window_bottom, small_window_top
 
 
     def blind_search(self):
