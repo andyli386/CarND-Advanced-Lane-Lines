@@ -32,3 +32,5 @@ class Line(object):
         self.allx = None
         #y values for detected line pixels
         self.ally = None
+        self.x = None
+        self.y = None
