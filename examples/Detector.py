@@ -23,20 +23,26 @@ class Detector(object):
         result = self.__imageUtils.perspective(processed_image)
 
         self.__set_binary_image(result)
-       # if self.__leftLine.detected:
-       #     self.quick_search_new(self.__leftLine)
-       # else:
-       #     self.blind_search_new(self.__leftLine)
-       # if self.__rightLine.detected:
-       #     self.quick_search_new(self.__rightLine)
-       # else:
-       #     self.blind_search_new(self.__rightLine)
+        if self.__leftLine.detected:
+            self.quick_search_new(self.__leftLine)
+        else:
+            self.blind_search_new(self.__leftLine)
+        if self.__rightLine.detected:
+            self.quick_search_new(self.__rightLine)
+        else:
+            self.blind_search_new(self.__rightLine)
 
-        self.blind_search_new(self.__leftLine)
-        self.blind_search_new(self.__rightLine)
+        #self.blind_search_new(self.__leftLine)
+        #self.blind_search_new(self.__rightLine)
 
         #self.blind_search()
-        left_fitx, right_fitx, ploty = self.get_fit()
+
+        #left_fitx, right_fitx, ploty = self.get_fit()
+
+        ploty = np.linspace(0, self.__binary_image.shape[0] - 1, self.__binary_image.shape[0])
+        left_fitx, left_fity = self.get_fit_new(self.__leftLine.lineType)
+        right_fitx, right_fity = self.get_fit_new(self.__rightLine.lineType)
+
         result = self.__imageUtils.draw_on_origin_image(binary_image, left_fitx, right_fitx, ploty, plot)
 
         return result
@@ -148,16 +154,6 @@ class Detector(object):
 
         small_window_histogram = np.sum(self.__binary_image[small_window_top:small_window_bottom, :], axis=0)
         all_histogram = np.sum(self.__binary_image[200:, :], axis=0)
-        '''
-        if self == right:
-            base = (np.argmax(histogram_bottom[640:-60]) + 640) \
-                if np.argmax(histogram_bottom[640:-60]) > 0 \
-                else (np.argmax(histogram[640:]) + 640)
-        else:
-            base = np.argmax(histogram_bottom[:640]) \
-                if np.argmax(histogram_bottom[:640]) > 0 \
-                else np.argmax(histogram[:640])
-        '''
 
 
         if lineType == LineType.right:
@@ -209,15 +205,7 @@ class Detector(object):
         self.__rightLine.allx = self.__nonzerox[right_lane_inds]
         self.__rightLine.ally = self.__nonzeroy[right_lane_inds]
 
-    def sort_idx(self):
-        """
-        Sort x and y according to y index
-        """
-        sorted_idx = np.argsort(self.y)
-        sorted_x_inds = self.x[sorted_idx]
-        sorted_y_inds = self.y[sorted_idx]
 
-        return sorted_x_inds, sorted_y_inds
 
     def get_fit(self):
         # Fit a second order polynomial to each
@@ -227,6 +215,38 @@ class Detector(object):
         self.__leftLine.current_fitx = self.__leftLine.current_fit[0] * ploty ** 2 + self.__leftLine.current_fit[1] * ploty + self.__leftLine.current_fit[2]
         self.__rightLine.current_fitx = self.__rightLine.current_fit[0] * ploty ** 2 + self.__rightLine.current_fit[1] * ploty + self.__rightLine.current_fit[2]
         return self.__leftLine.current_fitx, self.__rightLine.current_fitx, ploty
+
+    def get_fit_new(self, lineType):
+        if lineType == LineType.left:
+            line = self.__leftLine
+        else:
+            line = self.__rightLine
+
+        line.current_fit = np.polyfit(line.ally, line.allx, 2)
+        line.current_bottom_x = line.current_fit[0] * 720 ** 2 + line.current_fit[1] * 720 + line.current_fit[2]
+
+        line.bottom_x.append(line.current_bottom_x)
+        line.current_bottom_x = np.median(line.bottom_x)
+
+        line.x = np.append(line.x, line.current_bottom_x)
+        line.y = np.append(line.y, 720)
+        print(line.lineType, " ", line.x, " ", line.y)
+
+        sorted_idx = np.argsort(line.y)
+        print(sorted_idx)
+        line.x = line.x[sorted_idx]
+        line.y = line.y[sorted_idx]
+
+
+        line.fit = np.polyfit(line.y, line.x, 2)
+        line.A.append(line.fit[0])
+        line.B.append(line.fit[1])
+        line.C.append(line.fit[2])
+        line.fity = line.y
+        line.fit = [np.median(line.A), np.median(line.B), np.median(line.C)]
+        line.fitx = line.fit[0] * line.fity ** 2 + line.fit[1] * line.fity + line.fit[2]
+
+        return line.fitx, line.fity
 
     def __get_blind_inds(self, leftx_current, rightx_current, window):
         # Identify window boundaries in x and y (and right and left)
