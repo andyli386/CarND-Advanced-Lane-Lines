@@ -2,11 +2,16 @@ import numpy as np
 import cv2
 from skimage import data, exposure, img_as_float
 import matplotlib.pyplot as plt
-
+from Calibration import Calibration
 
 class ImageUtils(object):
     def __init__(self):
-        pass
+        #self.__src = np.float32([[490, 482], [820, 482], [1280, 670], [20, 670]])
+        #self.__dst = np.float32([[0, 0], [1280, 0], [1280, 720], [0, 720]])
+        self.__src = np.float32([[190, 720], [589, 457], [698, 457], [1145, 720]])
+        self.__dst = np.float32([[340, 720], [340, 0], [995, 0], [995, 720]])
+        self.__mtx, self.__dist = Calibration().get_from_pickle()
+        self.__wraped_binary_image = None
 
     def apply_thresh(self, processed_binary, thresh):
         binary = np.zeros_like(processed_binary)
@@ -125,7 +130,7 @@ class ImageUtils(object):
         return self.apply_thresh(self.get_lab(image, channel), thresh)
 
 
-    def luv_lab_filter(self, image, l_thresh=(195, 255), b_thresh=(140, 200)):
+    def luv_lab_filter(self, image, l_thresh=(225, 255), b_thresh=(140, 200)):
         image = self.reset_gamma(image)
 
         l_cha = self.luv_threshold(image, channel='l', thresh=l_thresh)
@@ -152,20 +157,20 @@ class ImageUtils(object):
     def reset_gamma(self, image, gamma=0.3):
         return exposure.adjust_gamma(image, gamma)
 
-    def perspective(self, image, mtx, dist, src, dst):
-        self.undist = cv2.undistort(image, mtx, dist, None, mtx)
+    def perspective(self, image):
+        self.undist = cv2.undistort(image, self.__mtx, self.__dist, None, self.__mtx)
 
         self.img_size = (image.shape[1], image.shape[0])
 
-        self.M = cv2.getPerspectiveTransform(src, dst)
-        self.converseM = cv2.getPerspectiveTransform(dst, src)
-        warped = cv2.warpPerspective(self.undist, self.M, self.img_size)
-        return warped
+        self.M = cv2.getPerspectiveTransform(self.__src, self.__dst)
+        self.converseM = cv2.getPerspectiveTransform(self.__dst, self.__src)
+        self.__wraped_binary_image = cv2.warpPerspective(self.undist, self.M, self.img_size)
+        return self.__wraped_binary_image
 
     def draw(self, image, processed_image):
         f, (ax1, ax2) = plt.subplots(1, 2, figsize=(16, 9))
         f.tight_layout()
-        print(processed_image)
+        #print(processed_image)
 
         ax1.imshow(image, cmap='gray')
         ax1.set_title('Original Image', fontsize=20)
@@ -175,7 +180,7 @@ class ImageUtils(object):
         # plt.subplots_adjust(left=0., right=1, top=2., bottom=0.)
         plt.show()
 
-    def draw_on_origin_image(self, image, imageUtils, left_fitx, right_fitx, ploty, plot=False):
+    def draw_on_origin_image(self, image, left_fitx, right_fitx, ploty, plot=False):
         # Create an image to draw the lines on
         warp_zero = np.zeros_like(image[:, :, -1]).astype(np.uint8)
         color_warp = np.dstack((warp_zero, warp_zero, warp_zero))
@@ -189,11 +194,12 @@ class ImageUtils(object):
         cv2.fillPoly(color_warp, np.int_([pts]), (0, 255, 0))
 
         # Warp the blank back to original image space using inverse perspective matrix (Minv)
-        newwarp = cv2.warpPerspective(color_warp, imageUtils.converseM, imageUtils.img_size)
+        newwarp = cv2.warpPerspective(color_warp, self.converseM, self.img_size)
         # Combine the result with the original image
         result = cv2.addWeighted(image, 1, newwarp, 0.3, 0)
         if plot:
-            plt.imshow(result)
-            plt.show()
+            self.draw(image, self.__wraped_binary_image)
+            #plt.imshow(result)
+            #plt.show()
 
         return result
