@@ -130,7 +130,7 @@ class ImageUtils(object):
         return self.apply_thresh(self.get_lab(image, channel), thresh)
 
 
-    def luv_lab_filter(self, image, l_thresh=(225, 255), b_thresh=(140, 200)):
+    def luv_lab_filter(self, image, l_thresh=(222, 255), b_thresh=(140, 200)):
         image = self.reset_gamma(image)
 
         l_cha = self.luv_threshold(image, channel='l', thresh=l_thresh)
@@ -180,16 +180,18 @@ class ImageUtils(object):
         # plt.subplots_adjust(left=0., right=1, top=2., bottom=0.)
         plt.show()
 
-    def draw_on_origin_image(self, image, left_fitx, right_fitx, ploty, plot=False):
+    def draw_on_origin_image(self, image, left_fitx, right_fitx, left_fity, right_fity, plot=False):
         # Create an image to draw the lines on
         warp_zero = np.zeros_like(image[:, :, -1]).astype(np.uint8)
         color_warp = np.dstack((warp_zero, warp_zero, warp_zero))
 
         # Recast the x and y points into usable format for cv2.fillPoly()
-        pts_left = np.array([np.transpose(np.vstack([left_fitx, ploty]))])
-        pts_right = np.array([np.flipud(np.transpose(np.vstack([right_fitx, ploty])))])
+        pts_left = np.array([np.transpose(np.vstack([left_fitx, left_fity]))])
+        pts_right = np.array([np.flipud(np.transpose(np.vstack([right_fitx, right_fity])))])
         pts = np.hstack((pts_left, pts_right))
 
+        #print('pts = ', pts)
+        #print(left_fitx, right_fitx, left_fity, right_fity)
         # Draw the lane onto the warped blank image
         cv2.fillPoly(color_warp, np.int_([pts]), (0, 255, 0))
 
@@ -199,6 +201,7 @@ class ImageUtils(object):
         result = cv2.addWeighted(image, 1, newwarp, 0.3, 0)
         if plot:
             self.draw(image, self.__wraped_binary_image)
+            #self.draw(image, newwarp)
             #plt.imshow(result)
             #plt.show()
 

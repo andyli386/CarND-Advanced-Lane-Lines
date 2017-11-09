@@ -43,7 +43,7 @@ class Detector(object):
         left_fitx, left_fity = self.get_fit_new(self.__leftLine.lineType)
         right_fitx, right_fity = self.get_fit_new(self.__rightLine.lineType)
 
-        result = self.__imageUtils.draw_on_origin_image(binary_image, left_fitx, right_fitx, ploty, plot)
+        result = self.__imageUtils.draw_on_origin_image(binary_image, left_fitx, right_fitx, left_fity, right_fity, plot)
 
         return result
 
@@ -228,23 +228,26 @@ class Detector(object):
         line.bottom_x.append(line.current_bottom_x)
         line.current_bottom_x = np.median(line.bottom_x)
 
-        line.x = np.append(line.x, line.current_bottom_x)
-        line.y = np.append(line.y, 720)
-        print(line.lineType, " ", line.x, " ", line.y)
+        line.allx = np.append(line.allx, line.current_bottom_x)
+        line.ally = np.append(line.ally, 720)
+        #print(line.lineType, " ", line.allx, " ", line.ally)
 
-        sorted_idx = np.argsort(line.y)
-        print(sorted_idx)
-        line.x = line.x[sorted_idx]
-        line.y = line.y[sorted_idx]
+        sorted_idx = np.argsort(line.ally)
+        #print(sorted_idx)
+        line.allx = line.allx[sorted_idx]
+        line.ally = line.ally[sorted_idx]
 
 
-        line.fit = np.polyfit(line.y, line.x, 2)
+        line.fit = np.polyfit(line.ally, line.allx, 2)
         line.A.append(line.fit[0])
         line.B.append(line.fit[1])
         line.C.append(line.fit[2])
-        line.fity = line.y
+        line.fity = line.ally
         line.fit = [np.median(line.A), np.median(line.B), np.median(line.C)]
         line.fitx = line.fit[0] * line.fity ** 2 + line.fit[1] * line.fity + line.fit[2]
+
+        #print('line.fitx = ', line.fitx)
+        #print('line.fity = ', line.fity)
 
         return line.fitx, line.fity
 
