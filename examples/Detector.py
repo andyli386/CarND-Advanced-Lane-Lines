@@ -18,50 +18,31 @@ class Detector(object):
 
     def detect(self, binary_image, plot=False):
 
-        wraped_result = self.__imageUtils.perspective(binary_image)
-
-        processed_image = self.__imageUtils.luv_lab_filter(wraped_result)
-        #processed_image = self.__imageUtils.hls_sobel_filter(binary_image)
-        #processed_image = self.__imageUtils.combine_filter(binary_image)
-
-        #result = self.__imageUtils.perspective(processed_image)
-        result = processed_image
+        warped_result = self.__imageUtils.perspective(binary_image)
+        result = self.__imageUtils.luv_lab_filter(warped_result)
 
         if plot:
-            self.__imageUtils.draw(processed_image, result)
+            self.__imageUtils.draw(warped_result, result)
 
         self.__set_binary_image(result)
         if self.__leftLine.detected:
-            self.quick_search_new(self.__leftLine)
+            self.quick_search(self.__leftLine)
         else:
-            #print('__leftLine = ', self.__leftLine)
-            self.blind_search_new(self.__leftLine, plot)
+            self.blind_search(self.__leftLine, plot)
         if self.__rightLine.detected:
-            self.quick_search_new(self.__rightLine)
+            self.quick_search(self.__rightLine)
         else:
-            #print('__rightLine = ', self.__rightLine)
-            self.blind_search_new(self.__rightLine, plot)
+            self.blind_search(self.__rightLine, plot)
 
-        #self.blind_search_new(self.__leftLine, plot)
-        #self.blind_search_new(self.__rightLine, plot)
 
-        #self.blind_search()
-
-        #left_fitx, right_fitx, ploty = self.get_fit()
-
-        #ploty = np.linspace(0, self.__binary_image.shape[0] - 1, self.__binary_image.shape[0])
-        #result = self.__imageUtils.draw_on_origin_image(binary_image, left_fitx, right_fitx, ploty, ploty, plot)
-
-        left_fitx, left_fity = self.get_fit_new(self.__leftLine)
-        right_fitx, right_fity = self.get_fit_new(self.__rightLine)
-        #if(left_fitx == None or right_fitx == None):
-        #    return binary_image
+        left_fitx, left_fity = self.get_fit(self.__leftLine)
+        right_fitx, right_fity = self.get_fit(self.__rightLine)
 
         result = self.__imageUtils.draw_on_origin_image(binary_image, left_fitx, right_fitx, left_fity, right_fity, plot)
 
         return result
 
-    def quick_search_new(self, line):
+    def quick_search(self, line):
         """
         Assuming in last frame, lane has been detected. Based on last x/y coordinates, quick search current lane.
         """
@@ -89,61 +70,11 @@ class Detector(object):
             self.detected = False  # If no lane pixels were detected then perform blind search
 
 
-
-    def __set_binary_image(self, binary_image):
-        self.__binary_image = binary_image
-
-        nonzero = self.__binary_image.nonzero()
-        self.__nonzeroy = np.array(nonzero[0])
-        self.__nonzerox = np.array(nonzero[1])
-        self.__window_height = np.int(self.__binary_image.shape[0] / self.__nwindows)
-        self.__midpoint = np.int(self.__binary_image.shape[1] / 2)
-
-
-
-
-    def blind_search_new2(self, line, plot=False):
-        """
-        Sliding window search method, start from blank.
-        """
-        x_inds = []
-        y_inds = []
-        if line.detected is False:
-            win_bottom = 720
-            win_top = 630
-            while win_top >= 0:
-                histogram = np.sum(self.__binary_image[win_top:win_bottom, :], axis=0)
-                if line.lineType == LineType.right:
-                    base = np.argmax(histogram[640:]) + 640
-                else:
-                    base = np.argmax(histogram[:640])
-                x_idx = np.where((((base - 50) < self.__nonzerox) & (self.__nonzerox < (base + 50))
-                                  & ((self.__nonzeroy > win_top) & (self.__nonzeroy < win_bottom))))
-                x_window, y_window = self.__nonzerox[x_idx], self.__nonzeroy[x_idx]
-                if np.sum(x_window) != 0:
-                    x_inds.extend(x_window)
-                    y_inds.extend(y_window)
-                win_top -= 90
-                win_bottom -= 90
-        if np.sum(x_inds) > 0:
-            line.detected = True
-
-        line.allx = np.array(x_inds).astype(np.float32)
-        line.ally = np.array(y_inds).astype(np.float32)
-        #print('line.allx = ', line.allx)
-        #print('allx = ', x_inds)
-        #print('ally = ', y_inds)
-        #print('line.Type = ', line.lineType)
-        #print('line = ', line)
-
-
-    def blind_search_new(self, line, debug=False):
+    def blind_search(self, line, debug=False):
         allx = []
         ally = []
-        base, window_bottom, window_top = self.__get_base_new(line.lineType)
+        base, window_bottom, window_top = self.__get_base(line.lineType)
         window_x_high, window_x_low = self.__get_x_low_high(base)
-        #window_x_low = base - self.__margin
-        #window_x_high = base + self.__margin
 
         x_idx, x_window, y_window = self.__get_xy_window(window_bottom, window_top, window_x_high, window_x_low)
 
@@ -178,119 +109,16 @@ class Detector(object):
                 ally.extend(y_window)
             if len(x_idx[0]) > self.__minpix:
                 base = np.int(np.mean(x_window))
-            #if debug:
-            #    print(x_move, base, window_bottom, window_top,window_x_low, window_x_high)
-                #print('x_window = ', x_window, '\ny_window = ', y_window)
-                #cv2.rectangle(self.__binary_image, (window_x_low, window_top), (window_x_high, window_bottom),
-                #              (0, 255, 255), 2)
-                #ImageUtils().draw(self.__binary_image, self.__binary_image)
+
 
         if np.sum(allx) > 0:
             self.detected = True
 
             line.allx = allx
             line.ally = ally
-            #line.allx = np.array(allx).astype(np.float32)
-            #line.ally = np.array(ally).astype(np.float32)
-            #print('self.detected = ', self.detected, ' line.Type = ', line.lineType)
-        #else:
-        #    line.allx = line.x
-        #    line.ally = line.y
-
-        #print('line.allx = ', line.allx)
-        #print('allx = ', allx)
-        #print('ally = ', ally)
-        #print('line.Type = ', line.lineType)
-
-    def __get_x_low_high(self, base):
-        window_x_low = max(base - self.__margin, 0)
-        window_x_high = min(base + self.__margin, 1280)
-        return window_x_high, window_x_low
-
-    def __get_xy_window(self, window_bottom, window_top, window_x_high, window_x_low):
-        x_idx = np.where(((window_x_low < self.__nonzerox) & (self.__nonzerox < window_x_high)
-                          & ((self.__nonzeroy > window_top) & (self.__nonzeroy < window_bottom))))
-        x_window, y_window = self.__nonzerox[x_idx], self.__nonzeroy[x_idx]
-        return x_idx, x_window, y_window
-
-    def __get_base_new(self, lineType):
-        small_window_bottom = self.__binary_image.shape[0]
-        small_window_top = self.__binary_image.shape[0] - self.__window_height
-
-        small_window_histogram = np.sum(self.__binary_image[small_window_top:small_window_bottom, :], axis=0)
-        all_histogram = np.sum(self.__binary_image[200:, :], axis=0)
 
 
-        if lineType == LineType.right:
-            base = (np.argmax(small_window_histogram[self.__midpoint:-60]) + self.__midpoint) \
-                if np.argmax(small_window_histogram[self.__midpoint:-60]) > 0 \
-                else (np.argmax(all_histogram[self.__midpoint:]) + self.__midpoint)
-            #print((np.argmax(small_window_histogram[self.__midpoint:-60]) + self.__midpoint) ,(np.argmax(all_histogram[self.__midpoint:]) + self.__midpoint) )
-            #print(np.argmax(small_window_histogram))
-            #print(base)
-           # print((np.argmax(small_window_histogram[self.__midpoint:-60]) + self.__midpoint) )
-           # print(np.argmax(small_window_histogram[self.__midpoint:]))
-           # print(np.argmax(small_window_histogram[self.__midpoint:-60]))
-           # print(self.__midpoint)
-        else:
-            base = np.argmax(small_window_histogram[:self.__midpoint]) \
-                if np.argmax(small_window_histogram[:self.__midpoint]) > 0 \
-                else np.argmax(all_histogram[:self.__midpoint])
-        return base, small_window_bottom, small_window_top
-
-
-    def blind_search(self):
-        leftx_base, rightx_base = self.__get_base()
-
-        leftx_current = leftx_base
-        rightx_current = rightx_base
-        # Create empty lists to receive left and right lane pixel indices
-        left_lane_inds = []
-        right_lane_inds = []
-
-        # Step through the windows one by one
-        for window in range(self.__nwindows):
-            good_left_inds, good_right_inds = self.__get_blind_inds(leftx_current, rightx_current, window)
-            # Append these indices to the lists
-            left_lane_inds.append(good_left_inds)
-            right_lane_inds.append(good_right_inds)
-            # If you found > minpix pixels, recenter next window on their mean position
-            if len(good_left_inds) > self.__minpix:
-                leftx_current = np.int(np.median(self.__nonzerox[good_left_inds]))
-            if len(good_right_inds) > self.__minpix:
-                rightx_current = np.int(np.median(self.__nonzerox[good_right_inds]))
-
-        # Concatenate the arrays of indices
-        left_lane_inds = np.concatenate(left_lane_inds)
-        right_lane_inds = np.concatenate(right_lane_inds)
-
-        # Extract left and right line pixel positions
-        self.__leftLine.allx = self.__nonzerox[left_lane_inds]
-        self.__leftLine.ally = self.__nonzeroy[left_lane_inds]
-        self.__rightLine.allx = self.__nonzerox[right_lane_inds]
-        self.__rightLine.ally = self.__nonzeroy[right_lane_inds]
-
-
-
-    def get_fit(self):
-        # Fit a second order polynomial to each
-        self.__leftLine.current_fit = np.polyfit(self.__leftLine.ally, self.__leftLine.allx, 2)
-        self.__rightLine.current_fit = np.polyfit(self.__rightLine.ally, self.__rightLine.allx, 2)
-        ploty = np.linspace(0, self.__binary_image.shape[0] - 1, self.__binary_image.shape[0])
-        self.__leftLine.current_fitx = self.__leftLine.current_fit[0] * ploty ** 2 + self.__leftLine.current_fit[1] * ploty + self.__leftLine.current_fit[2]
-        self.__rightLine.current_fitx = self.__rightLine.current_fit[0] * ploty ** 2 + self.__rightLine.current_fit[1] * ploty + self.__rightLine.current_fit[2]
-        return self.__leftLine.current_fitx, self.__rightLine.current_fitx, ploty
-
-    def get_fit_new(self, line):
-        #if lineType == LineType.left:
-        #    line = self.__leftLine
-        #else:
-        #    line = self.__rightLine
-
-        #print('\n', line)
-        #if (line.allx == None) or (line.ally == None) or (len(line.allx) == 0) or (len(line.ally) == 0):
-        #    return
-        print('\nallx, ally = ', line.allx, line.ally)
+    def get_fit(self, line):
 
         line.current_fit = np.polyfit(line.ally, line.allx, 2)
         line.current_bottom_x = line.current_fit[0] * 720 ** 2 + line.current_fit[1] * 720 + line.current_fit[2]
@@ -326,56 +154,8 @@ class Detector(object):
         line.fit = [np.median(line.A), np.median(line.B), np.median(line.C)]
         line.fitx = line.fit[0] * line.fity ** 2 + line.fit[1] * line.fity + line.fit[2]
 
-        #print('line.fitx = ', line.fitx)
-        #print('line.fity = ', line.fity)
 
         return line.fitx, line.fity
-
-    def __get_blind_inds(self, leftx_current, rightx_current, window):
-        # Identify window boundaries in x and y (and right and left)
-        win_y_low = self.__binary_image.shape[0] - (window + 1) * self.__window_height
-        win_y_high = self.__binary_image.shape[0] - window * self.__window_height
-        win_xleft_low = leftx_current - self.__margin
-        win_xleft_high = leftx_current + self.__margin
-        win_xright_low = rightx_current - self.__margin
-        win_xright_high = rightx_current + self.__margin
-
-        good_left_inds = ((self.__nonzeroy >= win_y_low) & (self.__nonzeroy < win_y_high) &
-                          (self.__nonzerox >= win_xleft_low) & (self.__nonzerox < win_xleft_high)).nonzero()[0]
-        good_right_inds = ((self.__nonzeroy >= win_y_low) & (self.__nonzeroy < win_y_high) &
-                           (self.__nonzerox >= win_xright_low) & (self.__nonzerox < win_xright_high)).nonzero()[0]
-
-        return good_left_inds, good_right_inds
-
-    def __get_base(self):
-        histogram = np.sum(self.__binary_image[int(self.__binary_image.shape[0] / 2):, :], axis=0)
-
-        midpoint = np.int(histogram.shape[0] / 2)
-        leftx_base = np.argmax(histogram[:midpoint])
-        rightx_base = np.argmax(histogram[midpoint:]) + midpoint
-        return leftx_base, rightx_base
-
-    def quick_search(self):
-
-        left_lane_inds, right_lane_inds = self.__get_quick_inds()
-
-        # Again, extract left and right line pixel positions
-        self.__leftLine.allx = self.__nonzerox[left_lane_inds]
-        self.__leftLine.ally = self.__nonzeroy[left_lane_inds]
-        self.__rightLine.allx = self.__nonzerox[right_lane_inds]
-        self.__rightLine.ally = self.__nonzeroy[right_lane_inds]
-
-    def __get_quick_inds(self):
-        left_lane_inds = ((self.__nonzerox > (self.__get_line_values(self.__leftLine) - self.__margin)) &
-                          (self.__nonzerox < (self.__get_line_values(self.__leftLine) + self.__margin)))
-
-        right_lane_inds = ((self.__nonzerox > (self.__get_line_values(self.__rightLine) - self.__margin)) &
-                           (self.__nonzerox < (self.__get_line_values(self.__rightLine) + self.__margin)))
-
-        return left_lane_inds, right_lane_inds
-
-    def __get_line_values(self, line):
-        return line.current_fit[0] * (self.__nonzeroy ** 2) + line.current_fit[1] * self.__nonzeroy + line.current_fit[2]
 
     def measuring_curvature(self):
         ploty = np.linspace(0, 719, num=720)  # to cover same y-range as image
@@ -430,3 +210,44 @@ class Detector(object):
             2 * right_fit_cr[0])
         # Now our radius of curvature is in meters
         #print(left_curverad, 'm', right_curverad, 'm')
+
+
+
+    def __get_x_low_high(self, base):
+        window_x_low = max(base - self.__margin, 0)
+        window_x_high = min(base + self.__margin, 1280)
+        return window_x_high, window_x_low
+
+    def __get_xy_window(self, window_bottom, window_top, window_x_high, window_x_low):
+        x_idx = np.where(((window_x_low < self.__nonzerox) & (self.__nonzerox < window_x_high)
+                          & ((self.__nonzeroy > window_top) & (self.__nonzeroy < window_bottom))))
+        x_window, y_window = self.__nonzerox[x_idx], self.__nonzeroy[x_idx]
+        return x_idx, x_window, y_window
+
+    def __get_base(self, lineType):
+        small_window_bottom = self.__binary_image.shape[0]
+        small_window_top = self.__binary_image.shape[0] - self.__window_height
+
+        small_window_histogram = np.sum(self.__binary_image[small_window_top:small_window_bottom, :], axis=0)
+        all_histogram = np.sum(self.__binary_image[200:, :], axis=0)
+
+
+        if lineType == LineType.right:
+            base = (np.argmax(small_window_histogram[self.__midpoint:-60]) + self.__midpoint) \
+                if np.argmax(small_window_histogram[self.__midpoint:-60]) > 0 \
+                else (np.argmax(all_histogram[self.__midpoint:]) + self.__midpoint)
+        else:
+            base = np.argmax(small_window_histogram[:self.__midpoint]) \
+                if np.argmax(small_window_histogram[:self.__midpoint]) > 0 \
+                else np.argmax(all_histogram[:self.__midpoint])
+        return base, small_window_bottom, small_window_top
+
+    def __set_binary_image(self, binary_image):
+        self.__binary_image = binary_image
+
+        nonzero = self.__binary_image.nonzero()
+        self.__nonzeroy = np.array(nonzero[0])
+        self.__nonzerox = np.array(nonzero[1])
+        self.__window_height = np.int(self.__binary_image.shape[0] / self.__nwindows)
+        self.__midpoint = np.int(self.__binary_image.shape[1] / 2)
+

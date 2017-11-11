@@ -208,23 +208,11 @@ class ImageUtils(object):
             plt.plot(right_fitx, right_fity, color='yellow')
             plt.show()
 
-            #plt.plot(pts_right, color='yellow')
-            #plt.show(self.__wraped_binary_image)
-
-
-        #print('pts = ', pts)
-        #print(left_fitx, right_fitx, left_fity, right_fity)
-        # Draw the lane onto the warped blank image
         cv2.fillPoly(color_warp, np.int_([pts]), (0, 255, 0))
 
         # Warp the blank back to original image space using inverse perspective matrix (Minv)
         newwarp = cv2.warpPerspective(color_warp, self.converseM, self.img_size)
         # Combine the result with the original image
         result = cv2.addWeighted(image, 1, newwarp, 0.3, 0)
-        #if plot:
-        #    self.draw(image, self.__wraped_binary_image)
-            #self.draw(image, color_warp)
-            #plt.imshow(result)
-            #plt.show()
 
         return result
