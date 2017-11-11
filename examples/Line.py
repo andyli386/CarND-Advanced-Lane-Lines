@@ -13,7 +13,7 @@ class LineType(Enum):
 
 class Line(object):
     def __init__(self, lineType):
-        self.__frame_num = 5
+        self.__frame_num = 15
         self.lineType = lineType
         # was the line detected in the last iteration?
         self.detected = False
@@ -39,6 +39,9 @@ class Line(object):
         self.y = []
         self.current_bottom_x = None
         self.bottom_x = deque(maxlen=self.__frame_num)
+
+        self.current_top_x = None
+        self.top_x = deque(maxlen=self.__frame_num)
 
         # Record radius of curvature
         self.radius = None

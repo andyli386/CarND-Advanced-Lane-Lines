@@ -8,10 +8,16 @@ class ImageUtils(object):
     def __init__(self):
         #self.__src = np.float32([[490, 482], [820, 482], [1280, 670], [20, 670]])
         #self.__dst = np.float32([[0, 0], [1280, 0], [1280, 720], [0, 720]])
+
+        #self.__src = np.float32([[490, 482], [810, 482], [1250, 720], [0, 720]])
+        #self.__dst = np.float32([[0, 0], [1280, 0], [1250, 720], [40, 720]])
+
         self.__src = np.float32([[190, 720], [589, 457], [698, 457], [1145, 720]])
         self.__dst = np.float32([[340, 720], [340, 0], [995, 0], [995, 720]])
         self.__mtx, self.__dist = Calibration().get_from_pickle()
         self.__wraped_binary_image = None
+        self.M = None
+        self.converseM = None
 
     def apply_thresh(self, processed_binary, thresh):
         binary = np.zeros_like(processed_binary)
@@ -130,8 +136,8 @@ class ImageUtils(object):
         return self.apply_thresh(self.get_lab(image, channel), thresh)
 
 
-    def luv_lab_filter(self, image, l_thresh=(222, 255), b_thresh=(140, 200)):
-        image = self.reset_gamma(image)
+    def luv_lab_filter(self, image, l_thresh=(215, 255), b_thresh=(145, 200)):
+        #image = self.reset_gamma(image)
 
         l_cha = self.luv_threshold(image, channel='l', thresh=l_thresh)
         b_cha = self.lab_threshold(image, channel='b', thresh=b_thresh)
@@ -151,10 +157,11 @@ class ImageUtils(object):
         s_binary = self.apply_thresh(s_channel, s_thresh)
 
         combine = np.zeros_like(s_binary)
-        combine[(s_binary > 0) | (sobelx_binary > 0)] = 1
+        combine[(s_binary == 1) | (sobelx_binary == 1)] = 1
         return combine
 
-    def reset_gamma(self, image, gamma=0.3):
+
+    def reset_gamma(self, image, gamma=0.4):
         return exposure.adjust_gamma(image, gamma)
 
     def perspective(self, image):
@@ -162,9 +169,12 @@ class ImageUtils(object):
 
         self.img_size = (image.shape[1], image.shape[0])
 
-        self.M = cv2.getPerspectiveTransform(self.__src, self.__dst)
-        self.converseM = cv2.getPerspectiveTransform(self.__dst, self.__src)
-        self.__wraped_binary_image = cv2.warpPerspective(self.undist, self.M, self.img_size)
+        if self.M == None:
+            self.M = cv2.getPerspectiveTransform(self.__src, self.__dst)
+        if self.converseM == None:
+            self.converseM = cv2.getPerspectiveTransform(self.__dst, self.__src)
+
+        self.__wraped_binary_image = cv2.warpPerspective(self.undist, self.M, self.img_size, flags=cv2.INTER_NEAREST)
         return self.__wraped_binary_image
 
     def draw(self, image, processed_image):
@@ -185,10 +195,22 @@ class ImageUtils(object):
         warp_zero = np.zeros_like(image[:, :, -1]).astype(np.uint8)
         color_warp = np.dstack((warp_zero, warp_zero, warp_zero))
 
+        #print("left_fitx = ", len(left_fitx))
+        #print("left_fity = ", len(left_fity))
         # Recast the x and y points into usable format for cv2.fillPoly()
         pts_left = np.array([np.transpose(np.vstack([left_fitx, left_fity]))])
         pts_right = np.array([np.flipud(np.transpose(np.vstack([right_fitx, right_fity])))])
         pts = np.hstack((pts_left, pts_right))
+
+        if plot:
+            plt.imshow(self.__wraped_binary_image, cmap='gray')
+            plt.plot(left_fitx, left_fity, color='yellow')
+            plt.plot(right_fitx, right_fity, color='yellow')
+            plt.show()
+
+            #plt.plot(pts_right, color='yellow')
+            #plt.show(self.__wraped_binary_image)
+
 
         #print('pts = ', pts)
         #print(left_fitx, right_fitx, left_fity, right_fity)
@@ -199,9 +221,9 @@ class ImageUtils(object):
         newwarp = cv2.warpPerspective(color_warp, self.converseM, self.img_size)
         # Combine the result with the original image
         result = cv2.addWeighted(image, 1, newwarp, 0.3, 0)
-        if plot:
-            self.draw(image, self.__wraped_binary_image)
-            #self.draw(image, newwarp)
+        #if plot:
+        #    self.draw(image, self.__wraped_binary_image)
+            #self.draw(image, color_warp)
             #plt.imshow(result)
             #plt.show()
 
