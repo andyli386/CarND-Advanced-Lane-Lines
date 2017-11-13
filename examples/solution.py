@@ -40,11 +40,11 @@ def pipeline(image):
 
 
 detector = Detector()
-debug = True
-#debug = False
+#debug = True
+debug = False
 
-test = mpimg.imread('../test_images/test1.jpg')
-pipelined = pipeline(test)
+#test = mpimg.imread('../test_images/test1.jpg')
+#pipelined = pipeline(test)
 ##ImageUtils().draw(test0, pipelined)
 #test0 = mpimg.imread('../test_images/test_ch0.jpg')
 #test1 = mpimg.imread('../test_images/test_ch1.jpg')
@@ -76,7 +76,7 @@ pipelined = pipeline(test)
 #clip = VideoFileClip("../project_video.mp4")
 
 
-#white_output = '../output_images/challenge_video_output.mp4'
-#clip = VideoFileClip("../challenge_video.mp4")
-#white_clip = clip.fl_image(pipeline) #NOTE: this function expects color images!!
-#white_clip.write_videofile(white_output, audio=False)
+white_output = '../output_images/challenge_video_output.mp4'
+clip = VideoFileClip("../challenge_video.mp4")
+white_clip = clip.fl_image(pipeline) #NOTE: this function expects color images!!
+white_clip.write_videofile(white_output, audio=False)
