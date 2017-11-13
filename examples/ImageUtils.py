@@ -9,11 +9,11 @@ class ImageUtils(object):
         #self.__src = np.float32([[490, 482], [820, 482], [1280, 670], [20, 670]])
         #self.__dst = np.float32([[0, 0], [1280, 0], [1280, 720], [0, 720]])
 
-        #self.__src = np.float32([[490, 482], [810, 482], [1250, 720], [0, 720]])
-        #self.__dst = np.float32([[0, 0], [1280, 0], [1250, 720], [40, 720]])
+        self.__src = np.float32([[490, 482], [810, 482], [1250, 720], [0, 720]])
+        self.__dst = np.float32([[0, 0], [1280, 0], [1250, 720], [40, 720]])
 
-        self.__src = np.float32([[190, 720], [589, 457], [698, 457], [1145, 720]])
-        self.__dst = np.float32([[340, 720], [340, 0], [995, 0], [995, 720]])
+        #self.__src = np.float32([[190, 720], [589, 457], [698, 457], [1145, 720]])
+        #self.__dst = np.float32([[340, 720], [340, 0], [995, 0], [995, 720]])
         self.__mtx, self.__dist = Calibration().get_from_pickle()
         self.__wraped_binary_image = None
         self.M = None
@@ -214,5 +214,23 @@ class ImageUtils(object):
         newwarp = cv2.warpPerspective(color_warp, self.converseM, self.img_size)
         # Combine the result with the original image
         result = cv2.addWeighted(image, 1, newwarp, 0.3, 0)
+
+        return result
+
+    def wirte_on_processed_image(self, result, offset, mean_curv):
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        text1 = 'Radius of Curvature: %d(m)'
+        text2 = 'Offset from center: %.2f(m)'
+        text3 = 'Radius of Curvature: Inf (m)'
+
+        if mean_curv < 3000:
+            cv2.putText(result, text1 % (int(mean_curv)),
+                        (60, 100), font, 1.0, (255, 255, 255), thickness=2)
+        else:
+            cv2.putText(result, text3,
+                        (60, 100), font, 1.0, (255, 255, 255), thickness=2)
+        cv2.putText(result,
+                    (text2 % (-offset)),
+                    (60, 130), font, 1.0, (255, 255, 255), thickness=2)
 
         return result

@@ -38,7 +38,14 @@ class Detector(object):
         left_fitx, left_fity = self.get_fit(self.__leftLine)
         right_fitx, right_fity = self.get_fit(self.__rightLine)
 
+
         result = self.__imageUtils.draw_on_origin_image(binary_image, left_fitx, right_fitx, left_fity, right_fity, plot)
+
+
+        offset, mean_curv = self.car_pos()
+
+        result = self.__imageUtils.wirte_on_processed_image(result, offset, mean_curv)
+
 
         return result
 
@@ -146,16 +153,72 @@ class Detector(object):
         line.ally = line.ally[sorted_idx]
 
 
-        line.fit = np.polyfit(line.ally, line.allx, 2)
-        line.A.append(line.fit[0])
-        line.B.append(line.fit[1])
-        line.C.append(line.fit[2])
+        line.current_fit = np.polyfit(line.ally, line.allx, 2)
+        line.A.append(line.current_fit[0])
+        line.B.append(line.current_fit[1])
+        line.C.append(line.current_fit[2])
         line.fity = line.ally
-        line.fit = [np.median(line.A), np.median(line.B), np.median(line.C)]
-        line.fitx = line.fit[0] * line.fity ** 2 + line.fit[1] * line.fity + line.fit[2]
+        line.current_fit = [np.median(line.A), np.median(line.B), np.median(line.C)]
+        line.fitx = line.current_fit[0] * line.fity ** 2 + line.current_fit[1] * line.fity + line.current_fit[2]
 
 
         return line.fitx, line.fity
+
+    def curvature(self, line):
+        """
+        calculate curvature from fit parameter
+        :param fit: [A, B, C]
+        :return: radius of curvature (in meters unit)
+        """
+
+        ym_per_pix = 18 / 720  # meters per pixel in y dimension
+        xm_per_pix = 3.7 / 700  # meters per pixel in x dimension
+        fitx = line.current_fit[0] * self.__ploty ** 2 + line.current_fit[1] * self.__ploty + line.current_fit[2]
+        y_eval = np.max(self.__ploty)
+        # Fit new polynomials to x,y in world space
+        fit_cr = np.polyfit(self.__ploty * ym_per_pix, fitx * xm_per_pix, 2)
+
+        curved = ((1 + (2 * fit_cr[0] * y_eval * ym_per_pix + fit_cr[1]) ** 2) ** 1.5) / \
+                   np.absolute(2 * fit_cr[0])
+
+        return curved
+
+    def car_pos(self):
+        """
+        Calculate the position of car on left and right lane base (convert to real unit meter)
+        :param left_fit:
+        :param right_fit:
+        :return: distance (meters) of car offset from the middle of left and right lane
+        """
+
+        xleft_eval = self.__get_eval(self.__leftLine)
+        xright_eval = self.__get_eval(self.__rightLine)
+
+        ym_per_pix = 18 / 720  # meters per pixel in y dimension
+        xm_per_pix = 3.7 / abs(xleft_eval - xright_eval)  # meters per pixel in x dimension
+        xmean = np.mean((xleft_eval, xright_eval))
+        offset = (self.__binary_image.shape[1] / 2 - xmean) * xm_per_pix  # +: car in right; -: car in left side
+
+        left_curved = self.__get_curved(self.__leftLine.current_fit, xm_per_pix, ym_per_pix)
+
+        right_curved = self.__get_curved(self.__rightLine.current_fit, xm_per_pix, ym_per_pix)
+
+        mean_curv = np.mean([left_curved, right_curved])
+
+        return offset, mean_curv
+
+
+    def __get_eval(self, line):
+        return line.current_fit[0] * np.max(self.__ploty) ** 2 + line.current_fit[1] * np.max(self.__ploty) + line.current_fit[2]
+
+    def __get_curved(self, fit, xm_per_pix, ym_per_pix):
+        y_eval = np.max(self.__ploty)
+
+        fitx = fit[0] * self.__ploty ** 2 + fit[1] * self.__ploty + fit[2]
+        fit_cr = np.polyfit(self.__ploty * ym_per_pix, fitx * xm_per_pix, 2)
+        curverad = ((1 + (2 * fit_cr[0] * y_eval * ym_per_pix + fit_cr[1]) ** 2) ** 1.5) / \
+                        np.absolute(2 * fit_cr[0])
+        return curverad
 
     def measuring_curvature(self):
         ploty = np.linspace(0, 719, num=720)  # to cover same y-range as image
@@ -250,4 +313,6 @@ class Detector(object):
         self.__nonzerox = np.array(nonzero[1])
         self.__window_height = np.int(self.__binary_image.shape[0] / self.__nwindows)
         self.__midpoint = np.int(self.__binary_image.shape[1] / 2)
+        self.__ploty = np.linspace(0, self.__binary_image.shape[0] - 1, self.__binary_image.shape[0])
+
 
